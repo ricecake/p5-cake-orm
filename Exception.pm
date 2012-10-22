@@ -36,5 +36,10 @@ sub __stringify {
 	use base qw(Cake::Exception);
 	our $message = "Attempted to write a read-only field";
 }
+{
+	package Cake::Exception::NotFound;
+	use base qw(Cake::Exception);
+	our $message = "The requested item could not be found";
+}
 
 1;
