@@ -6,10 +6,12 @@ sub throw {
 	no strict qw(refs);
 
 	my $class = shift;
+	my $args  = shift;
 	my $self = {};
 	bless $self, $class;
 	$self->{location}   = sprintf("Package: %s filename: %s Line: %s Function: %s", caller(1));
 	$self->{message} = ${"${class}::message"} || "An exception has ocured";
+	$self->{details} = $args;
 	die $self;
 }
 
@@ -21,9 +23,21 @@ sub location {
 	my $self =shift;
 	return $self->{location};
 }
+sub details {
+	my $self = shift;
+	return $self->{details};
+}
 sub __stringify {
 	my ($self, $other, $swap) = @_;
-	return sprintf "%s at %s", $self->message, $self->location;
+	my $message = sprintf "%s at %s", $self->message, $self->location;
+	
+	my %details = %{ $self->details };
+	if(%details) {
+		my $details = join("\n", map { "    $_ => $details{$_}" } keys %details );
+		$message .= "\ndetails:\n$details";
+	}
+
+	return $message;
 }
 
 {
@@ -40,6 +54,16 @@ sub __stringify {
 	package Cake::Exception::NotFound;
 	use base qw(Cake::Exception);
 	our $message = "The requested item could not be found";
+}
+{
+	package Cake::Exception::DefinitionError;
+	use base qw(Cake::Exception);
+	our $message = "There was an exception processing the class definition";
+}
+{
+	package Cake::Exception::Required;
+	use base qw(Cake::Exception);
+	our $message = "A required field was missing.";
 }
 
 1;
