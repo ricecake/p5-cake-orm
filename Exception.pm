@@ -9,10 +9,23 @@ sub throw {
 	my $args  = shift;
 	my $self = {};
 	bless $self, $class;
-	$self->{location}   = sprintf("Package: %s filename: %s Line: %s Function: %s", caller(1));
+	$self->{location}   = sprintf("Package:[%s] filename:[%s] Line:[%s] Function:[%s]", caller(1));
 	$self->{message} = ${"${class}::message"} || "An exception has ocured";
 	$self->{details} = $args;
+	
+	my $frame = 1;
+	while(my ($package, $file, $line, $function) = caller($frame++)) {
+		push(@{ $self->{trace} }, sprintf("Package:[%s] filename:[%s] Line:[%s] Function:[%s]", $package, $file, $line, $function) );
+	}
 	die $self;
+}
+
+sub assert  {
+	my $class = shift;
+	my $code = shift;
+	my $args  = shift;
+	
+	$class->throw($args) unless &{$code};
 }
 
 sub message {
@@ -27,16 +40,20 @@ sub details {
 	my $self = shift;
 	return $self->{details};
 }
+sub trace {
+	my $self = shift;
+	return $self->{trace};
+}
 sub __stringify {
 	my ($self, $other, $swap) = @_;
 	my $message = sprintf "%s at %s", $self->message, $self->location;
 	
-	my %details = %{ $self->details };
-	if(%details) {
+	if($self->details) {
+		my %details = %{ $self->details };
 		my $details = join("\n", map { "    $_ => $details{$_}" } keys %details );
-		$message .= "\ndetails:\n$details";
+		$message .= "\ndetails:\n$details\n";
 	}
-
+	$message .= "\nStack trace:\n" . join("", map {"\t$_\n"} @{$self->{trace}});
 	return $message;
 }
 
@@ -63,7 +80,12 @@ sub __stringify {
 {
 	package Cake::Exception::Required;
 	use base qw(Cake::Exception);
-	our $message = "A required field was missing.";
+	our $message = "A required field was missing";
+}
+{
+	package Cake::Exception::TypeViolation;
+	use base qw(Cake::Exception);
+	our $message = "A value was unacceptable for its given type";
 }
 
 1;
