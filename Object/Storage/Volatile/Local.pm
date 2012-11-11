@@ -2,6 +2,7 @@ package Cake::Object::Storage::Volatile::Local;
 use base qw(Cake::Object::Storage::Volatile);
 
 use strict;
+use Sub::Name;
 
 __PACKAGE__->__engine(__PACKAGE__);
 __PACKAGE__->__driver({});
@@ -38,6 +39,8 @@ my %setters = (
 	},
 );
 
+map {$setters{$_} = subname $_ => $setters{$_}} keys %setters;
+
 sub __get_field {
 	my $self = shift;
 	my $field = shift;
@@ -69,6 +72,10 @@ sub _build {
 	my $def = shift;
 	my $self = {};
 	bless $self,$class;
+
+	my $primaryKey = $class->__traitFieldMap->{primary};
+	my $keyVal = $class->_driver()->{$class}{seq}{$primaryKey}++;
+	$params->{$primaryKey} = $keyVal;
 	
 	foreach my $field (keys %{$params}) {
 		#$self->{data}{$field} = $params->{$field};
@@ -76,6 +83,7 @@ sub _build {
 		my $value = $params->{$field};
 		$self->__set_field($field, $traits, $value);
 	}
+	$self->_local->{key} = "$class=$keyVal";
 	return $self;
 }
 

@@ -147,6 +147,11 @@ sub _fields {
 
 		foreach my $trait ( keys %{ $definition->{$field} } ) {
 			next if $trait eq 'isa';
+			if ($trait eq 'primary') {
+				Cake::Exception::DefinitionError->throw( { trait => 'primary' } ) if $reverseDefinition->{primary};
+				$reverseDefinition->{primary} = $field;
+				last;
+			}
 			my $traitSet = $definition->{$field}{$trait};
 			if ($traitSet) {
 				push( @{ $reverseDefinition->{$trait} }, $field );
@@ -155,7 +160,7 @@ sub _fields {
 		push( @{ $reverseDefinition->{isa}{$definition->{$field}{isa}} }, $field );
 	}
 
-	unless ( exists $reverseDefinition->{primary} && @{ $reverseDefinition->{primary} } == 1 )
+	unless ( exists $reverseDefinition->{primary} )
 	{
 		Cake::Exception::DefinitionError->throw( { trait => 'primary' } );
 	}
