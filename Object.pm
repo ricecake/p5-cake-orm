@@ -16,7 +16,6 @@ __PACKAGE__->mk_classdata( "__traitFieldMap" => {} );
 __PACKAGE__->mk_classdata( "__hasMany" => {} );
 __PACKAGE__->mk_classdata( "__hasA" => {} );
 
-
 #public inherited methods
 sub asHashRef {
 	Cake::Exception::PureVirtual->throw;
@@ -105,26 +104,22 @@ sub delete {
 	Cake::Exception::PureVirtual->throw;
 }
 
-sub _load {
-	Cake::Exception::PureVirtual->throw;
-}
-
 #private inherited methods
 
 =pod
 
 The _fields method lays out the description of the fileds in a class.
-Should specify if the field is indexed (default), unique, read-only, required or
+Should specify if the field is index (default), unique, read-only, required or
 the primary key.
 will eventually also specify the 'type' of the field.
 {
 	field => {
 		primary  => 0,
 		required => 1,
-		indexed => 0,
+		index     => 0,
 		unique  => 1,
 		readOnly => 1,
-		isa => "INTEGER' #not implemented yet.
+		isa => "INTEGER'
 	},
 	...
 }
@@ -141,11 +136,11 @@ sub _fields {
 		Cake::Exception::Required->throw({trait => 'isa', field => $field}) unless $definition->{$field}{isa};
 		
 		if ( $definition->{$field}{unique} ) {
-			delete $definition->{$field}{indexed};
+			delete $definition->{$field}{index};
 		}
 
 		if ( $definition->{$field}{primary} ) {
-			delete $definition->{$field}{indexed};
+			delete $definition->{$field}{index};
 			delete $definition->{$field}{unique};
 			$definition->{$field}{readOnly} = 1;
 		}

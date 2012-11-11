@@ -1,4 +1,4 @@
-package Cake::Resultset;
+package Cake::Object::Resultset;
 use strict; use warnings;
 use overload '${}' => \&__scalarREF, '@{}' => \&__arrayREF, '""' => \&__stringify;;
 

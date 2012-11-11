@@ -87,5 +87,10 @@ sub __stringify {
 	use base qw(Cake::Exception);
 	our $message = "A value was unacceptable for its given type";
 }
+{
+	package Cake::Exception::ConstraintViolation;
+	use base qw(Cake::Exception);
+	our $message = "A field value constraint was violated";
+}
 
 1;
