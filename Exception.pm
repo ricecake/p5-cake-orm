@@ -92,5 +92,16 @@ sub __stringify {
 	use base qw(Cake::Exception);
 	our $message = "A field value constraint was violated";
 }
+{
+	package Cake::Exception::Role::MethodExists;
+	use base qw(Cake::Exception);
+	our $message = "The role could not be installed, as method name is in use";
+}
+{
+	package Cake::Exception::Role::MethodUndefined;
+	use base qw(Cake::Exception);
+	our $message = "The role could not be installed, as the target method could not be found";
+}
+
 
 1;

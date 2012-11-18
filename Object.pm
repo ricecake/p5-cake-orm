@@ -9,8 +9,6 @@ use Cake::Exception;
 
 use base qw(Class::Data::Inheritable);
 
-no strict qw(refs);
-
 __PACKAGE__->mk_classdata( "__fieldTraitMap" => {} );
 __PACKAGE__->mk_classdata( "__traitFieldMap" => {} );
 __PACKAGE__->mk_classdata( "__hasMany" => {} );
@@ -216,6 +214,8 @@ sub _setup {
 	my %definition = %{ $class->__fieldTraitMap() };
 	my %hasMany = %{ $class->__hasMany() };
 	my %hasA       = %{ $class->__hasA() };
+
+	no strict qw(refs);
 	
 	while ( my ( $field, $traits ) = each %definition ) {
 		if ( $definition{$field}{readOnly} ) {
