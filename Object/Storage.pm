@@ -1,4 +1,5 @@
 package Cake::Object::Storage;
+use strict;
 use base qw(Cake::Object);
 
 =pod
@@ -31,7 +32,8 @@ please investigate using a local storage engine.
 
 sub _local {
 	my $self = shift;
-	my $engine = $self->__engine;
+	my $caller = caller;
+	my $engine = $caller->__engine;
 	
 	return $self->{$engine} ||= {};
 	

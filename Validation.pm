@@ -23,7 +23,7 @@ sub enforceType {
 	my $value = shift;
 	my $field   = shift;
 	unless(Cake::Validation::checkType($type, $value)){
-		Cake::Exception::TypeViolation->throw({type => $type, value => $value, field => $field});
+		Cake::Exception::Validation::TypeViolation->throw({type => $type, value => $value, field => $field});
 	}
 	return 1;
 }

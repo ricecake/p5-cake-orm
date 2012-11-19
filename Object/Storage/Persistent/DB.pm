@@ -1,8 +1,11 @@
 package Cake::Object::Storage::Persistent::DB;
+use strict;
 use base qw(Cake::Object::Persistent);
 
 use DBI;
 use SQL::Abstract;
+__PACKAGE__->__engine(__PACKAGE__);
+
 
 __PACKAGE__->mk_classdata( "_table");
 

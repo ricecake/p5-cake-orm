@@ -1,13 +1,12 @@
 package Cake::Object;
 
 use strict;
-use warnings;
 
 use Sub::Name;
 use Cake::Validation;
 use Cake::Exception;
 
-use base qw(Class::Data::Inheritable);
+use base qw(Class::Data::Inheritable Cake::Role);
 
 __PACKAGE__->mk_classdata( "__fieldTraitMap" => {} );
 __PACKAGE__->mk_classdata( "__traitFieldMap" => {} );
@@ -281,6 +280,7 @@ sub ___mk_read_write {
 	return subname "${class}::${field}" => sub {
 		my $self = shift;
 		if (@_) {
+			Cake::Validation::enforceType($traits->{isa}, @_[0], $field);
 			return $self->__set_field( $field, $traits, @_ );
 		}
 		else {

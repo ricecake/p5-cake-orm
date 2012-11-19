@@ -14,6 +14,15 @@ If there is a chunk of code that is reusable, or that has a particular pice of u
 notion of an inheritence tree, you can do this with a role.  The role will be installed into the package namespace, but won't affect
 inheritence.
 
+All role packages provide their functionality in the same way:  An our variable in the class named 'actions'
+holds a list of lists of strategies, method names, and code.
+
+	@actions = (
+			[
+				wrap => 'method', [\&, \&],
+			],
+	);
+
 =head1 METHODS
 
 =head2 __install_role
@@ -92,8 +101,8 @@ sub __install_role {
 
 		{
 			no strict qw(refs);
-			*{"$package::$method"} =
-			  subname "$package::$method" => $codeARRAY->[0];
+			*{"${package}::${method}"} =
+			  subname "${package}::${method}" => $codeARRAY->[0];
 		}
 	}
 	else {
@@ -111,37 +120,37 @@ sub __install_role {
 		if ( $strategy eq 'replace' ) {
 			{
 				no strict qw(refs);
-				*{"$package::$method"} =
-				  subname "$package::$method" => $codeARRAY->[0];
+				*{"${package}::${method}"} =
+				  subname "${package}::${method}" => $codeARRAY->[0];
 			}
 		}
 		elsif ( $strategy eq 'before' ) {
-			my $before = subname "$package::before_$method" => $codeARRAY->[0];
-			my $function = subname "$package::meta_$method" => sub {
+			my $before = subname "${package}::before_${method}" => $codeARRAY->[0];
+			my $function = subname "${package}::meta_${method}" => sub {
 				$before->( \@_ );
 				return $original->(@_);
 			};
 			{
 				no strict qw(refs);
-				*{"$package::$method"} = $function;
+				*{"${package}::${method}"} = $function;
 			}
 		}
 		elsif ( $strategy eq 'after' ) {
-			my $after    = subname "$package::after_$method" => $codeARRAY->[0];
-			my $function = subname "$package::meta_$method"  => sub {
+			my $after    = subname "${package}::after_${method}" => $codeARRAY->[0];
+			my $function = subname "${package}::meta_${method}"  => sub {
 				my @response = $original->(@_);
 				$after->( \@response, \@_ );
 				return @response;
 			};
 			{
 				no strict qw(refs);
-				*{"$package::$method"} = $function;
+				*{"${package}::${method}"} = $function;
 			}
 		}
 		elsif ( $strategy eq 'wrap' ) {
-			my $before = subname "$package::before_$method" => $codeARRAY->[0];
-			my $after  = subname "$package::after_$method"  => $codeARRAY->[1];
-			my $function = subname "$package::meta_$method" => sub {
+			my $before = subname "${package}::before_${method}" => $codeARRAY->[0];
+			my $after  = subname "${package}::after_${method}"  => $codeARRAY->[1];
+			my $function = subname "${package}::meta_${method}" => sub {
 				$before->( \@_ );
 				my @response = $original->(@_);
 				$after->( \@response, \@_ );
@@ -149,7 +158,24 @@ sub __install_role {
 			};
 			{
 				no strict qw(refs);
-				*{"$package::$method"} = $function;
+				*{"${package}::${method}"} = $function;
+			}
+		}
+	}
+}
+
+sub import {
+	my $class  = shift;
+	my @args   = @_;
+	my $caller = caller;
+	
+	#if @args is defined, then we were called with a list of roles to apply to the class. so lets do that.
+	if (@args) {
+		no strict qw(refs);
+		for my $role (@args) {
+			eval "require $role";
+			foreach my $action (@{"${role}::actions"}) {
+				__install_role($caller, @{ $action });
 			}
 		}
 	}
