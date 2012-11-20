@@ -84,11 +84,14 @@ With the wrap strategy, the first code reference given will be executed I<before
 =cut
 
 sub __install_role {
-	my ( $package, $strategy, $method, $codeARRAY, ) = @_;
+	my ( $package, $roleName, $strategy, $method, $codeARRAY, ) = @_;
 
 	$strategy = lc($strategy);
 
-	if ( $strategy eq 'insert' ) {
+	if ( $strategy eq 'once' ) {
+		&{subname "${package}::${method}" => $codeARRAY->[0]}($package);
+	}
+	elsif ( $strategy eq 'insert' ) {
 		Cake::Exception::Role::MethodExists->assert(
 			sub {
 				not $package->can($method);
@@ -125,8 +128,8 @@ sub __install_role {
 			}
 		}
 		elsif ( $strategy eq 'before' ) {
-			my $before = subname "${package}::before_${method}" => $codeARRAY->[0];
-			my $function = subname "${package}::meta_${method}" => sub {
+			my $before = subname "${package}::${roleName}_before_${method}" => $codeARRAY->[0];
+			my $function = subname "${package}::${roleName}_meta_${method}" => sub {
 				$before->( \@_ );
 				return $original->(@_);
 			};
@@ -136,8 +139,8 @@ sub __install_role {
 			}
 		}
 		elsif ( $strategy eq 'after' ) {
-			my $after    = subname "${package}::after_${method}" => $codeARRAY->[0];
-			my $function = subname "${package}::meta_${method}"  => sub {
+			my $after    = subname "${package}::${roleName}_after_${method}" => $codeARRAY->[0];
+			my $function = subname "${package}::${roleName}_meta_${method}"  => sub {
 				my @response = $original->(@_);
 				$after->( \@response, \@_ );
 				return @response;
@@ -148,12 +151,12 @@ sub __install_role {
 			}
 		}
 		elsif ( $strategy eq 'wrap' ) {
-			my $before = subname "${package}::before_${method}" => $codeARRAY->[0];
-			my $after  = subname "${package}::after_${method}"  => $codeARRAY->[1];
-			my $function = subname "${package}::meta_${method}" => sub {
-				$before->( \@_ );
+			my $before = subname "${package}::${roleName}_before_${method}" => $codeARRAY->[0];
+			my $after  = subname "${package}::${roleName}_after_${method}"  => $codeARRAY->[1];
+			my $function = subname "${package}::${roleName}_meta_${method}" => sub {
+				my $message = $before->( \@_ );
 				my @response = $original->(@_);
-				$after->( \@response, \@_ );
+				$after->($message, \@response, \@_ );
 				return @response;
 			};
 			{
@@ -162,6 +165,36 @@ sub __install_role {
 			}
 		}
 	}
+}
+
+=head2 installRoles
+
+This method will, given a class name, and an arrayref of role names, install all of those roles into that class.
+
+=head3 Invocation:
+
+C<< Cake::Role::installRoles($class, [Cake::Role::Whatever]) >>
+
+The class is the target class to install the roles into, and the arrayref of roles names
+is the roles that will be installed.
+
+=cut
+
+sub installRoles {
+	my $class  = shift;
+	my $args   = shift;
+
+	{
+		no strict qw(refs);
+		for my $role (@{$args}) {
+			my $stringyName = $role;
+			$stringyName =~ s/::/_/g;
+			eval "require $role" or die;
+			foreach my $action (@{"${role}::actions"}) {
+				__install_role($class, $stringyName, @{ $action });
+			}
+		}
+	}	
 }
 
 sub import {
@@ -173,13 +206,31 @@ sub import {
 	if (@args) {
 		no strict qw(refs);
 		for my $role (@args) {
-			eval "require $role";
+			my $stringyName = $role;
+			$stringyName =~ s/::/_/g;
+			eval "require $role" or die;
 			foreach my $action (@{"${role}::actions"}) {
-				__install_role($caller, @{ $action });
+				__install_role($caller, $stringyName, @{ $action });
 			}
 		}
 	}
 }
+
+our @actions = (
+	[
+		once => 'createRoleTracking', [sub{
+			my $class = shift;
+			$class->mk_classdata(__roles => []);
+		}],
+	],
+	[
+		insert => '_addRoles', [sub{
+			my $class = shift;
+			push(@{$class->__roles},@_);
+		}],
+	]
+);
+
 
 1;
 

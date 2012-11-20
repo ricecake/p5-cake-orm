@@ -16,10 +16,12 @@ our @actions = (
 				sleep 2;
 			},
 			sub {
-				my $response = shift;
+				my ($message, $response, $args) = @_;
 				$response->[0] = "It's " . $response->[0] .", you nutter.";
-				#Cake::Exception::Role::MethodExists->throw;
 			}],
+	],
+	[
+		before => 'id', [sub{print "But I don't wanna fetch an ID again!\n"}],
 	]
 );
 

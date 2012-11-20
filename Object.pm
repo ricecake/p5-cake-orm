@@ -13,6 +13,8 @@ __PACKAGE__->mk_classdata( "__traitFieldMap" => {} );
 __PACKAGE__->mk_classdata( "__hasMany" => {} );
 __PACKAGE__->mk_classdata( "__hasA" => {} );
 
+use Cake::Role qw(Cake::Role);
+
 #public inherited methods
 sub asHashRef {
 	Cake::Exception::PureVirtual->throw;
@@ -233,6 +235,8 @@ sub _setup {
 		*{"${class}::${field}"} = $class->___mk_has_a( $field, $details );
 	}
 	*{"${class}::create"} = subname "${class}::create" => $createFunc;
+	
+	Cake::Role::installRoles($class, $class->__roles);
 }
 
 sub __get_field {

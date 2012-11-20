@@ -265,6 +265,17 @@ An attempt was made to alter the call semantics of a method that could not be fo
 	our $message = "The role could not be installed, as the target method could not be found";
 }
 
+=head2 Cake::Exception::Role::UndefinedRole
+
+An attempt was made to implement a role that was not properly defined.
+
+=cut
+
+{
+	package Cake::Exception::Role::UndefinedRole;
+	use base qw(Cake::Exception);
+	our $message = "The role could not be installed, as the role itself was undefined";
+}
 
 1;
 
