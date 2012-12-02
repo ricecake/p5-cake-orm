@@ -9,6 +9,8 @@ Cake::Role
 
 =head1 DESCRIPTION
 
+They see me rollin'...
+
 Cake::Role is the way that Cake handles adding methods to a class, or altering the behavior of existing methods.
 If there is a chunk of code that is reusable, or that has a particular pice of utility that can be shared, but it doesn't fit well into the normal
 notion of an inheritence tree, you can do this with a role.  The role will be installed into the package namespace, but won't affect
@@ -141,9 +143,9 @@ sub __install_role {
 		elsif ( $strategy eq 'after' ) {
 			my $after    = subname "${package}::${roleName}_after_${method}" => $codeARRAY->[0];
 			my $function = subname "${package}::${roleName}_meta_${method}"  => sub {
-				my @response = $original->(@_);
-				$after->( \@response, \@_ );
-				return @response;
+				my $response = $original->(@_);
+				$after->( $response, \@_ );
+				return $response;
 			};
 			{
 				no strict qw(refs);
@@ -153,11 +155,12 @@ sub __install_role {
 		elsif ( $strategy eq 'wrap' ) {
 			my $before = subname "${package}::${roleName}_before_${method}" => $codeARRAY->[0];
 			my $after  = subname "${package}::${roleName}_after_${method}"  => $codeARRAY->[1];
+
 			my $function = subname "${package}::${roleName}_meta_${method}" => sub {
 				my $message = $before->( \@_ );
-				my @response = $original->(@_);
-				$after->($message, \@response, \@_ );
-				return @response;
+				my $response = $original->(@_);
+				$after->($message, \$response, \@_ );
+				return $response;
 			};
 			{
 				no strict qw(refs);

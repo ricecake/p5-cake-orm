@@ -21,11 +21,27 @@ sub asHashRef {
 }
 
 sub search {
-	Cake::Exception::PureVirtual->throw;
+	my ($class, $search, $order) = @_;
+	return $class->_search($search, $order);
 }
 
 sub find {
-	Cake::Exception::PureVirtual->throw;
+	my ($class, $args) = @_;
+	
+	my %traitMap = %{ $class->__traitFieldMap() };
+	my %definition   = %{ $class->__fieldTraitMap() };
+	
+	if(ref($args) eq 'HASH') { #We were passed a named field to search by, and should only use it.
+		return $class->_find($args);
+	}
+	else { #We were passed just one, and must build or out of unique fields.
+		my @search;
+		foreach my $field (@{ $traitMap{unique} }, $traitMap{primary}) {
+			Cake::Validation::checkType($definition{$field}{isa}, $args) or next;
+			push(@search, ($field, $args));
+		}
+		return $class->_find(\@search);
+	}
 }
 
 sub findOrCreate {
@@ -53,12 +69,9 @@ my $createFunc = sub  {
 			Cake::Exception::Required->throw({field => $required});
 		}
 	}
-	foreach my $type ( keys %{ $traitMap{isa} }) {
-		foreach my $field ( @{ $traitMap{isa}{$type} }) {
-			next unless exists $parameters->{$field};
-			Cake::Validation::enforceType($type, $parameters->{$field}, $field);
-		}
-	}
+	map {
+		Cake::Validation::enforceType($definition{$_}{isa}, $parameters->{$_}, $_);
+	} keys %{$parameters};
 	
 	$class->_preCreate($parameters);
 	my $object   = $class->_build($parameters, \%definition);
@@ -74,24 +87,26 @@ sub _build {
 }
 
 sub update {
-	my $class = shift;
-	my $parameters = shift;
-	my %definition   = %{ $class->__fieldTraitMap() };
-	my %traitMap    = %{ $class->__traitFieldMap() };
+	my ($invocant, $parameters, $where ) = @_;
+	
+	my %definition = %{ $invocant->__fieldTraitMap() };
+	my %traitMap   = %{ $invocant->__traitFieldMap() };
 
-	foreach my $required (@{ $traitMap{required} }) {
-		if (exists $parameters->{$required} && !(defined $parameters->{$required}) ) {
-			Cake::Exception::Required->throw({field => $required});
-		}
-	}
-	foreach my $type ( keys %{ $traitMap{isa} }) {
-		foreach my $field ( @{ $traitMap{isa}{$type} }) {
-			next unless exists $parameters->{$field};
-			Cake::Validation::enforceType($type, $parameters->{$field}, $field);
-		}
-	}
+	map {
+		Cake::Exception::ReadOnly->throw({field=> $_})
+			if $definition{$_}{readOnly};
+		Cake::Exception::Required->throw({field => $_})
+			if !defined $parameters->{$_} && $definition{$_}{required};
+		Cake::Validation::enforceType($definition{$_}{isa}, $parameters->{$_}, $_);
+	} keys %{$parameters};
 
-	return $class->_update($parameters, \%definition);
+	if(ref($invocant)) {
+		return $invocant->_update($parameters, \%definition);
+	}
+	else {
+		defined $where or Cake::Exception::DataLoss->throw();
+		return $invocant->_update($parameters, \%definition, $where);
+	}
 }
 
 sub _update {
@@ -100,7 +115,14 @@ sub _update {
 
 
 sub delete {
-	Cake::Exception::PureVirtual->throw;
+	my ($invocant, $where) = @_;
+	if(ref($invocant)) {
+		return $invocant->_delete;
+	}
+	else {
+		defined $where or Cake::Exception::DataLoss->throw();
+		return $invocant->_delete($where);
+	}
 }
 
 #private inherited methods
@@ -149,7 +171,7 @@ sub _fields {
 			if ($trait eq 'primary') {
 				Cake::Exception::DefinitionError->throw( { trait => 'primary' } ) if $reverseDefinition->{primary};
 				$reverseDefinition->{primary} = $field;
-				last;
+				next;
 			}
 			my $traitSet = $definition->{$field}{$trait};
 			if ($traitSet) {
@@ -172,13 +194,14 @@ sub _fields {
 
 the _has_a method describes relationships that a class has,
 where an object in the class has a singular relationship to another object in the given class.
-maps the field name to an array where the first element is the class that is referenced,
-and the second is the name of the field that is being refernced.
+maps the relation name to an array where the first element the local field that is referencing,
+the second field is the class that is referenced,
+and the third is the name of the field that is being refernced.
 equivelent to a forign key relationship, where THIS.field references OTHER.givenField
-if the value is not a arrayref, it assumes the primary key of the class.
+if the value is not a arrayref, it assumes the primary keys of the classes.
 {
-	owner => ['Apps::Memo::User' => 'name'],
-	sender => ['Apps::Memo::User' => 'name']
+	Owner => [owner => 'Apps::Memo::User' => 'name'],
+	Sender => [sender => 'Apps::Memo::User' => 'name']
 }
 
 =cut
@@ -234,6 +257,7 @@ sub _setup {
 	while ( my ( $field, $details ) = each %hasA ) {
 		*{"${class}::${field}"} = $class->___mk_has_a( $field, $details );
 	}
+	
 	*{"${class}::create"} = subname "${class}::create" => $createFunc;
 	
 	Cake::Role::installRoles($class, $class->__roles);
@@ -248,10 +272,6 @@ sub __set_field {
 }
 
 sub __get_has_a {
-	Cake::Exception::PureVirtual->throw;
-}
-
-sub __set_has_a {
 	Cake::Exception::PureVirtual->throw;
 }
 
@@ -271,7 +291,7 @@ sub ___mk_read_only {
 			Cake::Exception::ReadOnly->throw;
 		}
 		else {
-			return $self->__get_field( $field, $traits );
+			return $class->__get_field($self, $traits, $field);
 		}
 	}
 }
@@ -285,10 +305,10 @@ sub ___mk_read_write {
 		my $self = shift;
 		if (@_) {
 			Cake::Validation::enforceType($traits->{isa}, @_[0], $field);
-			return $self->__set_field( $field, $traits, @_ );
+			return $class->__set_field($self, $traits, $field, @_ );
 		}
 		else {
-			return $self->__get_field( $field, $traits );
+			return $class->__get_field($self, $traits, $field);
 		}
 	}
 }
@@ -301,10 +321,10 @@ sub ___mk_has_a {
 	return subname "${class}::${field}" => sub {
 		my $self = shift;
 		if (@_) {
-			return $self->__set_has_a( $field, $details, @_ );
+			Cake::Exception::ReadOnly->throw;
 		}
 		else {
-			return $self->__get_has_a( $field, $details );
+			return $class->__get_has_a($self, $details, $field);
 		}
 	}
 }
@@ -315,14 +335,41 @@ sub ___mk_has_many {
 	my $details = shift;
 
 	return subname "${class}::${field}" => sub {
-		my $self = shift;
+		my $self  = shift;
+		my $order = shift;
 		if (@_) {
 			Cake::Exception::ReadOnly->throw;
 		}
 		else {
-			return $self->__get_has_many( $field, $details );
+			return $class->__get_has_many($self, $details, $field, $order);
 		}
 	}
+}
+
+sub _local {
+	my $self = shift;
+	my $caller = caller;
+	my $engine = $caller->__engine;
+	
+	return $self->{$engine} ||= {};
+	
+}
+
+sub _classData {
+	my $self = shift;
+	my $class = ref($self);
+	my $caller = caller;
+	
+	return $caller->__ClassData->{$class} ||= {};
+	
+}
+
+sub __instantiate {
+	Cake::Exception::PureVirtual->throw;
+}
+
+sub __init {
+	return;
 }
 
 1;

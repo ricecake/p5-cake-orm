@@ -2,6 +2,9 @@ package Cake::Object::Storage;
 use strict;
 use base qw(Cake::Object);
 
+use Cake::Role qw(Cake::Role::Config);
+
+
 =pod
 The engine function should return the name of the engine in use.  Typically this is the package name for the storage mechanism.
 This is needed so that objects that are inheriting different methods from different engines can keep their namespaces clean for local
@@ -22,7 +25,7 @@ The class data is for the storage of information regarding storage semanitics re
 entire class.  For example, compiled sql for retriving particular fields for a class.  Not specific to object.
 =cut
 
-__PACKAGE__->mk_classdata( "__ClassData");
+__PACKAGE__->mk_classdata( "__ClassData" => {} );
 
 =pod
 The local method is for the storage of data particular to an object.  For example, the objects primary retrieval key.
@@ -30,22 +33,28 @@ This should be limited to data needed to grab the object out of storage.  For ca
 please investigate using a local storage engine.
 =cut
 
-sub _local {
-	my $self = shift;
-	my $caller = caller;
-	my $engine = $caller->__engine;
-	
-	return $self->{$engine} ||= {};
-	
-}
-
-sub __load {
+sub __load_object {
 	Cake::Exception::PureVirtual->throw;
 }
 
-sub __fetch {
+sub __fetch_object {
 	Cake::Exception::PureVirtual->throw;
 }
 
+sub __load_index {
+	Cake::Exception::PureVirtual->throw;
+}
+
+sub __fetch_index {
+	Cake::Exception::PureVirtual->throw;
+}
+
+sub __load_unique_index {
+	Cake::Exception::PureVirtual->throw;
+}
+
+sub __fetch_unique_index {
+	Cake::Exception::PureVirtual->throw;
+}
 
 1;

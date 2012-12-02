@@ -70,7 +70,7 @@ sub assert  {
 	my $code = shift;
 	my $args  = shift;
 	
-	$class->throw($args) unless &{$code};
+	$class->throw($args) unless eval { &{$code} };
 }
 
 =head2 message
@@ -275,6 +275,59 @@ An attempt was made to implement a role that was not properly defined.
 	package Cake::Exception::Role::UndefinedRole;
 	use base qw(Cake::Exception);
 	our $message = "The role could not be installed, as the role itself was undefined";
+}
+
+=head2 Cake::Exception::Config::LoadError
+
+An error was encountered while attempting to load a configuration file.
+
+=cut
+
+{
+	package Cake::Exception::Config::LoadError;
+	use base qw(Cake::Exception);
+	our $message = "An error was encountered while attempting to load a configuration file";
+}
+
+=head2 Cake::Exception::Config::UndefinedVariable
+
+A configuration variable was not defined.
+
+=cut
+
+{
+	package Cake::Exception::Config::UndefinedVariable;
+	use base qw(Cake::Exception);
+	our $message = "A configuration variable was not defined";
+}
+
+=head2 Cake::Exception::DB::DBIError
+
+A database error was encountered.
+
+=cut
+
+{
+	package Cake::Exception::DB::DBIError;
+	use base qw(Cake::Exception);
+	our $message = "A database error was encountered";
+}
+
+=head2 Cake::Exception::DataLoss
+
+A Data Loss incident was attempted.
+
+This is likely the result of attempting to call
+delete as a class method, without providing a where clause.
+If you really want to delete everything, generate a suitable
+where clause.
+
+=cut
+
+{
+	package Cake::Exception::DataLoss;
+	use base qw(Cake::Exception);
+	our $message = "A Data Loss incident was attempted";
 }
 
 1;

@@ -17,8 +17,8 @@ our @actions = (
 sub preSet {
 	my ($args) = @_;
 	
-	my $class = ref($args->[0]);
-	my $field = $args->[1];
+	my $class = $args->[0];
+	my $field = $args->[3];
 	my $message = luniqid;
 	my $time = sprintf("%X",time);
 	
@@ -31,18 +31,20 @@ sub preSet {
 sub postSet {
 	my ($message, $response, $args) = @_;
 	
-	my $class = ref($args->[0]);
-	my $field = $args->[1];
+	my $class = $args->[0];
+	my $field = $args->[3];
 	my $time = sprintf("%X",time);
 	
 	print "${message}.$time.info.${class}.done.set.${field}\n";
+	
+	return $response;
 }
 
 sub preGet {
 	my ($args) = @_;
 	
-	my $class = ref($args->[0]);
-	my $field = $args->[1];
+	my $class = $args->[0];
+	my $field = $args->[3];
 	my $message = luniqid;
 	my $time = sprintf("%X",time);
 	
@@ -54,11 +56,12 @@ sub preGet {
 sub postGet {
 	my ($message, $response, $args) = @_;
 	
-	my $class = ref($args->[0]);
-	my $field = $args->[1];
+	my $class = $args->[0];
+	my $field = $args->[3];
 	my $time = sprintf("%X",time);
 	
 	print "${message}.$time.info.${class}.done.get.${field}\n";
+	return $response;
 }
 
 1;

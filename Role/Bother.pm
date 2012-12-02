@@ -7,7 +7,7 @@ our @actions = (
 	[
 		wrap => '__get_field', [sub {
 				my $args = shift;
-				print "Alright, I'll get you the damned " . $args->[1] .".  But I won't enjoy it.\n";
+				print "Alright, I'll get you the damned " . $args->[3] .".  But I won't enjoy it.\n";
 				do {
 					print "...\n";
 					sleep 1;
@@ -17,7 +17,7 @@ our @actions = (
 			},
 			sub {
 				my ($message, $response, $args) = @_;
-				$response->[0] = "It's " . $response->[0] .", you nutter.";
+				$$response = "It's ${$response}, you nutter.";
 			}],
 	],
 	[
