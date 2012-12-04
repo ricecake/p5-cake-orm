@@ -2,7 +2,6 @@ package Cake::Object::Storage::Volatile::Local;
 use base qw(Cake::Object::Storage::Volatile);
 
 use strict;
-use Sub::Name;
 
 __PACKAGE__->__engine(__PACKAGE__);
 __PACKAGE__->__driver({});
@@ -39,11 +38,6 @@ sub _build {
 sub asHashRef {
 	my $self = shift;
 	return $self->{data};
-}
-
-sub _driver {
-	my $class = shift;
-	return $class->__driver();
 }
 
 1;

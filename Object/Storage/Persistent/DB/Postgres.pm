@@ -7,15 +7,15 @@ sub __init {
 
 	my $platform = $config->{platform};
 	my $database = $config->{database};
-	my $host = $config->{host};
-	my $port = $config->{port};
-	my $user = $config->{user};
-	my $pw = $config->{pw};
-	
+	my $host     = $config->{host};
+	my $port     = $config->{port};
+	my $user     = $config->{user};
+	my $pw       = $config->{pw};
+
 	my $dsn = "dbi:$platform:database=$database;host=$host;port=$port";
-	
-	__PACKAGE__->__driver(DBI->connect($dsn, $user, $pw));
-	__PACKAGE__->__driver->{HandleError} = sub {Cake::Exception::DB::DBIError->throw({driver => "Postgres", "errstr" => $_[0]})};
+
+	__PACKAGE__->__driver( DBI->connect( $dsn, $user, $pw ) );
+	__PACKAGE__->__driver->{HandleError} = sub { Cake::Exception::DB::DBIError->throw( { driver => "Postgres", "errstr" => $_[0] } ) };
 }
 
 1;

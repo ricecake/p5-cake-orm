@@ -57,4 +57,12 @@ sub __fetch_unique_index {
 	Cake::Exception::PureVirtual->throw;
 }
 
+sub __instantiate {
+	Cake::Exception::PureVirtual->throw;
+}
+
+sub __init {
+	return;
+}
+
 1;

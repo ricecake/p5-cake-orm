@@ -14,7 +14,7 @@ They see me rollin'...
 Cake::Role is the way that Cake handles adding methods to a class, or altering the behavior of existing methods.
 If there is a chunk of code that is reusable, or that has a particular pice of utility that can be shared, but it doesn't fit well into the normal
 notion of an inheritence tree, you can do this with a role.  The role will be installed into the package namespace, but won't affect
-inheritence.
+inheritence structure.
 
 All role packages provide their functionality in the same way:  An our variable in the class named 'actions'
 holds a list of lists of strategies, method names, and code.
@@ -184,27 +184,27 @@ is the roles that will be installed.
 =cut
 
 sub installRoles {
-	my $class  = shift;
-	my $args   = shift;
+	my $class = shift;
+	my $args  = shift;
 
 	{
 		no strict qw(refs);
-		for my $role (@{$args}) {
+		for my $role ( @{$args} ) {
 			my $stringyName = $role;
 			$stringyName =~ s/::/_/g;
 			eval "require $role" or die;
-			foreach my $action (@{"${role}::actions"}) {
-				__install_role($class, $stringyName, @{ $action });
+			foreach my $action ( @{"${role}::actions"} ) {
+				__install_role( $class, $stringyName, @{$action} );
 			}
 		}
-	}	
+	}
 }
 
 sub import {
 	my $class  = shift;
 	my @args   = @_;
 	my $caller = caller;
-	
+
 	#if @args is defined, then we were called with a list of roles to apply to the class. so lets do that.
 	if (@args) {
 		no strict qw(refs);
@@ -212,8 +212,8 @@ sub import {
 			my $stringyName = $role;
 			$stringyName =~ s/::/_/g;
 			eval "require $role" or die;
-			foreach my $action (@{"${role}::actions"}) {
-				__install_role($caller, $stringyName, @{ $action });
+			foreach my $action ( @{"${role}::actions"} ) {
+				__install_role( $caller, $stringyName, @{$action} );
 			}
 		}
 	}

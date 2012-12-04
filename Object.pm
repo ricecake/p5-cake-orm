@@ -16,9 +16,44 @@ __PACKAGE__->mk_classdata( "__hasA" => {} );
 use Cake::Role qw(Cake::Role);
 
 #public inherited methods
+
+sub _preCreate  {
+	return;
+}
+sub _create {
+	Cake::Exception::PureVirtual->throw;	
+}
+sub _postCreate {
+	return;
+}
 sub asHashRef {
 	Cake::Exception::PureVirtual->throw;
 }
+sub _update {
+	Cake::Exception::PureVirtual->throw;
+}
+sub _delete {
+	Cake::Exception::PureVirtual->throw;
+}
+sub _search {
+	Cake::Exception::PureVirtual->throw;
+}
+sub _find {
+	Cake::Exception::PureVirtual->throw;
+}
+sub __get_field {
+	Cake::Exception::PureVirtual->throw;
+}
+sub __set_field {
+	Cake::Exception::PureVirtual->throw;
+}
+sub __get_has_a {
+	Cake::Exception::PureVirtual->throw;
+}
+sub __get_has_many {
+	Cake::Exception::PureVirtual->throw;
+}
+
 
 sub search {
 	my ($class, $search, $order) = @_;
@@ -56,7 +91,15 @@ sub findOrDie {
 	return ( $class->find($params) || Cake::Exception::NotFound->throw );
 }
 
-sub _preCreate  { return; }
+sub _build {
+	my ($class, $key) = @_;
+	my $object = {};
+	bless $object, $class;
+	
+	$object->_pk($key) if $key;
+	
+	return $object;
+}
 
 my $createFunc = sub  {
 	my $class = shift;
@@ -74,17 +117,11 @@ my $createFunc = sub  {
 	} keys %{$parameters};
 	
 	$class->_preCreate($parameters);
-	my $object   = $class->_build($parameters, \%definition);
+	my $object   = $class->_create($parameters, \%definition);
 	$class->_postCreate($object, $parameters);
 	
 	return $object;
 };
-
-sub _postCreate { return; }
-
-sub _build {
-	Cake::Exception::PureVirtual->throw;	
-}
 
 sub update {
 	my ($invocant, $parameters, $where ) = @_;
@@ -108,11 +145,6 @@ sub update {
 		return $invocant->_update($parameters, \%definition, $where);
 	}
 }
-
-sub _update {
-	Cake::Exception::PureVirtual->throw;
-}
-
 
 sub delete {
 	my ($invocant, $where) = @_;
@@ -263,22 +295,6 @@ sub _setup {
 	Cake::Role::installRoles($class, $class->__roles);
 }
 
-sub __get_field {
-	Cake::Exception::PureVirtual->throw;
-}
-
-sub __set_field {
-	Cake::Exception::PureVirtual->throw;
-}
-
-sub __get_has_a {
-	Cake::Exception::PureVirtual->throw;
-}
-
-sub __get_has_many {
-	Cake::Exception::PureVirtual->throw;
-}
-
 #private 'not inherited' methods
 sub ___mk_read_only {
 	my $class  = shift;
@@ -346,13 +362,18 @@ sub ___mk_has_many {
 	}
 }
 
+sub _pk {
+	my ($self, $key) = @_;
+	return $self->{_pk} ||= { $key->{field} => $key->{value} };
+}
+
+
 sub _local {
 	my $self = shift;
-	my $caller = caller;
+	my $caller = shift || caller;
 	my $engine = $caller->__engine;
 	
 	return $self->{$engine} ||= {};
-	
 }
 
 sub _classData {
@@ -364,12 +385,8 @@ sub _classData {
 	
 }
 
-sub __instantiate {
-	Cake::Exception::PureVirtual->throw;
-}
-
-sub __init {
-	return;
+sub _CLASS {
+	ref(shift);
 }
 
 1;

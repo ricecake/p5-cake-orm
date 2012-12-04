@@ -16,7 +16,7 @@ sub all {
 	my $of = $self->of;
 	my $primary = $of->__traitFieldMap()->{primary};
 	my @results = map {
-		Cake::Object::Storage::Persistent::DB::__instantiate($of, { field => $primary, value => $_->[0] })
+		$of->_build({ field => $primary, value => $_->[0] })
 		} @{ $self->{sth}->fetchall_arrayref };
 	return wantarray? @results : \@results;
 }
@@ -26,8 +26,7 @@ sub next {
 	my $primary = $of->__traitFieldMap()->{primary};
 	my $result = $self->{sth}->fetchrow_arrayref;
 	if($result) {
-		return Cake::Object::Storage::Persistent::DB::__instantiate($of,
-			{ field => $primary, value => $result->[0] });
+		return $of->_build({ field => $primary, value => $result->[0] });
 	}
 	return;
 }

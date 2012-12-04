@@ -12,20 +12,9 @@ __PACKAGE__->mk_classdata("_table");
 
 my $sql = SQL::Abstract->new;
 
-use Data::Dumper qw(Dumper);
-
-sub __instantiate {
-	my ($class, $key) = @_;
-
-	my $object = {};
-	bless $object, $class;
-	$object->_local->{key} = $key;
-
-	return $object;
-}
-
 sub __rectifyOrder {
 	my $order = shift;
+	return unless $order;
 	if(not ref($order)) {
 		$order =~ s/^\s+//;
 		$order =~ s/\s+$//;
@@ -57,10 +46,10 @@ sub _find {
 	my ($key)  = $sth->fetchrow_array;
 	return unless $key;
 
-	return __instantiate($class, {field => $primary, value => $key});
+	return $class->_build({field => $primary, value => $key});
 }
 
-sub _build {
+sub _create {
 	my ($class, $params, $definition ) = @_;
 
 	my $table = $class->_table;
@@ -73,7 +62,7 @@ sub _build {
 	my ($key)  = $sth->fetchrow_array;
 	return unless $key;
 
-	return __instantiate($class, {field => $primary, value => $key});
+	return $class->_build({field => $primary, value => $key});
 }
 
 sub _search {
@@ -110,7 +99,7 @@ sub _update {
 sub _delete {
 	my ($invocant, $where) = @_;
 	my $table = $invocant->_table;
-	$where   ||= {$invocant->_local->{key}{field} => $invocant->_local->{key}{value} };
+	$where   ||= $invocant->_pk;
 
 	my ($query, @bind) = ($invocant->_classData->{sql}{delete} ||= $sql->delete($table, $where));
 	unless(@bind) {
@@ -128,11 +117,11 @@ sub _delete {
 sub __get_field {
 	my ($class, $self, $traits, $field) = @_;
 	my $table = $self->_table;
-	my $key   = $self->_local->{key};
+	my $key   = $self->_pk;
 
-	my ($query, @bind) = ($self->_classData->{sql}{get}{$field} ||= $sql->select($table, $field, {$key->{field} => $key->{value}}));
+	my ($query, @bind) = ($self->_classData->{sql}{get}{$field} ||= $sql->select($table, $field, $key));
 	unless(@bind) {
-		@bind = $sql->values({$key->{field} => $key->{value}});
+		@bind = $sql->values($key);
 	}
 	my $sth = $class->__driver->prepare($query);
 	$sth->execute(@bind);
@@ -142,11 +131,11 @@ sub __get_field {
 sub __set_field {
 	my ($class, $self, $traits, $field, $value) = @_;	
 	my $table = $self->_table;
-	my $key   = $self->_local->{key};
+	my $key   = $self->_pk;
 	
-	my ($query, @bind) = ($self->_classData->{sql}{set}{$field} ||= $sql->update($table, {$field => $value}, {$key->{field} => $key->{value} } ) );
+	my ($query, @bind) = ($self->_classData->{sql}{set}{$field} ||= $sql->update($table, {$field => $value}, $key ) );
 	unless(@bind) {
-		@bind = ($sql->values({$field => $value}), $sql->values({$key->{field} => $key->{value}}));
+		@bind = $sql->values($key);
 	}
 	my $sth = $class->__driver->prepare($query);
 	$sth->execute(@bind);
@@ -164,15 +153,20 @@ sub __get_has_a {
 	my $otherTable = $otherClass->_table;
 	my $otherPK    = $otherClass->__traitFieldMap()->{primary};
 	
-	my $key   = $self->_local->{key};
+	my $key   = $self->_pk;
+	my ($field, $value) = %{$key};
 	
-	my ($query, @bind) = ($self->_classData->{sql}{has_a}{$field} ||= $sql->select(
-							["$myTable me", "$otherTable them"], "them.$otherPK",
-							{
-								"me.$key->{field}" => "me.$key->{value}",
-								"them.$otherField" => {-ident => "me.$myField"}
-							})
-						  );
+	my ( $query, @bind ) = (
+		$self->_classData->{sql}{has_a}{$field} ||= $sql->select(
+			[ "$myTable me", "$otherTable them" ],
+			"them.$otherPK",
+			{
+				"me.$field"        => $value,
+				"them.$otherField" => { -ident => "me.$myField" }
+			}
+		)
+	);
+
 	unless(@bind) {
 		@bind = $sql->values({$key->{field} => $key->{value}});
 	}
@@ -181,8 +175,7 @@ sub __get_has_a {
 	
 	my $result = $sth->fetchrow_arrayref;
 	if($result) {
-		return __instantiate($otherClass,
-				{ field => $otherPK, value => $result->[0] });
+		return $otherClass->_build({ field => $otherPK, value => $result->[0] });
 	}
 	return;
 }
@@ -199,17 +192,23 @@ sub __get_has_many {
 	my $otherTable = $otherClass->_table;
 	my $otherPK    = $otherClass->__traitFieldMap()->{primary};
 	
-	my $key   = $self->_local->{key};
+	my $key   = $self->_pk;
+	my ($field, $value) = %{$key};
+	
+	my ( $query, @bind ) = (
+		$self->_classData->{sql}{has_many}{$field} ||= $sql->select(
+			[ "$myTable me", "$otherTable them" ],
+			"them.$otherPK",
+			{
+				"me.$field"        => $value,
+				"them.$otherField" => { -ident => "me.$myField" }
+			},
+			$order
+		)
+	);
 
-	my ($query, @bind) = ($self->_classData->{sql}{has_many}{$field} ||= $sql->select(
-							["$myTable me", "$otherTable them"], "them.$otherPK",
-							{
-								"me.$key->{field}" => "me.$key->{value}",
-								"them.$otherField" => {-ident => "me.$myField"}
-							}, $order )
-						  );
 	unless(@bind) {
-		@bind = $sql->values({$key->{field} => $key->{value}});
+		@bind = $sql->values($key);
 	}
 	my $sth = $class->__driver->prepare($query);
 	$sth->execute(@bind);
