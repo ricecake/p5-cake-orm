@@ -8,9 +8,16 @@ use Cake::Object::Storage::Persistent::DB::Resultset;
 
 __PACKAGE__->__engine(__PACKAGE__);
 
-__PACKAGE__->mk_classdata("_table");
+
 
 my $sql = SQL::Abstract->new;
+
+sub __instantiate {
+	my ($object) = @_;
+	$object->_local->{test} = "POSTGRES";
+	return;
+}
+
 
 sub __rectifyOrder {
 	my $order = shift;
@@ -34,10 +41,10 @@ sub __rectifyOrder {
 }
 
 sub _find {
-	my ($class, $search) = @_;
+	my ($class, $invocant, $search) = @_;
 	
-	my $table = $class->_table;
-	my $primary = $class->__traitFieldMap()->{primary};
+	my $table = $invocant->_table;
+	my $primary = $invocant->__traitFieldMap()->{primary};
 	
 	my ($query, @bind) = $sql->select($table, $primary, $search);
 	my $sth = $class->__driver->prepare($query);
@@ -46,14 +53,14 @@ sub _find {
 	my ($key)  = $sth->fetchrow_array;
 	return unless $key;
 
-	return $class->_build({field => $primary, value => $key});
+	return $invocant->_build({$primary => $key});
 }
 
 sub _create {
-	my ($class, $params, $definition ) = @_;
+	my ($class, $invocant, $params, $definition ) = @_;
 
-	my $table = $class->_table;
-	my $primary = $class->__traitFieldMap()->{primary};
+	my $table = $invocant->_table;
+	my $primary = $invocant->__traitFieldMap()->{primary};
 
 	my ($query, @bind) = $sql->insert($table, $params, {returning => $primary});
 	my $sth = $class->__driver->prepare($query);
@@ -62,30 +69,30 @@ sub _create {
 	my ($key)  = $sth->fetchrow_array;
 	return unless $key;
 
-	return $class->_build({field => $primary, value => $key});
+	return $invocant->_build({$primary => $key});
 }
 
 sub _search {
-	my ($class, $search, $order) = @_;
+	my ($class, $invocant, $search, $order) = @_;
 	
-	my $table = $class->_table;
-	my $primary = $class->__traitFieldMap()->{primary};
+	my $table = $invocant->_table;
+	my $primary = $invocant->__traitFieldMap()->{primary};
 	
 	my ($query, @bind) = $sql->select($table, $primary, $search, $order);
 	my $sth = $class->__driver->prepare($query);
 	$sth->execute(@bind);
 
-	return Cake::Object::Storage::Persistent::DB::Resultset->create($class, $sth);
+	return Cake::Object::Storage::Persistent::DB::Resultset->create($invocant, $sth);
 }
 
 sub _update {
-	my ($invocant, $parameters, $definition, $where) = @_;
+	my ($class, $invocant, $parameters, $definition, $where) = @_;
 	my $table = $invocant->_table;
 	$where   ||= {$invocant->_local->{key}{field} => $invocant->_local->{key}{value} };
 
 	my ($query, @bind) = $sql->update($table, $parameters, $where);
 
-	my $sth = $invocant->__driver->prepare($query);
+	my $sth = $class->__driver->prepare($query);
 	$sth->execute(@bind);
 
 	if(ref($invocant)) {
@@ -97,7 +104,7 @@ sub _update {
 }
 
 sub _delete {
-	my ($invocant, $where) = @_;
+	my ($class, $invocant, $where) = @_;
 	my $table = $invocant->_table;
 	$where   ||= $invocant->_pk;
 
@@ -106,13 +113,14 @@ sub _delete {
 		@bind = $sql->values($where);
 	}
 
-	my $sth = $invocant->__driver->prepare($query);
+	my $sth = $class->__driver->prepare($query);
 	$sth->execute(@bind);
 	return $sth->rows;
 }
 
 #made sure that $class was passed in first, so that inteface and cacher methods can call getter methods on
 #the classes that they're targeting, and don't call them on their local classes
+#need to back up, and make sure that all methods take params in form of engine, domain/thing, method specific args
 
 sub __get_field {
 	my ($class, $self, $traits, $field) = @_;
@@ -175,7 +183,7 @@ sub __get_has_a {
 	
 	my $result = $sth->fetchrow_arrayref;
 	if($result) {
-		return $otherClass->_build({ field => $otherPK, value => $result->[0] });
+		return $otherClass->_build({$otherPK => $result->[0] });
 	}
 	return;
 }
@@ -222,7 +230,15 @@ sub __load_object {
 }
 
 sub __fetch_object {
-	Cake::Exception::PureVirtual->throw;
+	my ($class, $invocant) = @_;
+	
+	my $table = $invocant->_table;
+	
+	my ($query, @bind) = $sql->select($table, [ keys %{$invocant->__fieldTraitMap()} ], $invocant->_pk);
+	my $sth = $class->__driver->prepare($query);
+	$sth->execute(@bind);
+
+	return $sth->fetchrow_hashref;
 }
 
 sub __fetch_index {

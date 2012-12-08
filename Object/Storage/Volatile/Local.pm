@@ -6,10 +6,21 @@ use strict;
 __PACKAGE__->__engine(__PACKAGE__);
 __PACKAGE__->__driver({});
 
+sub __init {
+	my ($class) = @_;
+	$class->_registerInitCallback(__PACKAGE__->can('__instantiate'));
+}
+
+sub __instantiate {
+	my ($object) = @_;
+	$object->_local->{data} = undef;
+	return;
+}
+
 sub __get_field {
 	my ($class, $self, $traits, $field) = @_;
 
-	return $self->{data}{$field};
+	return $self->_local->{data}{$field};
 }
 
 sub __set_field {
@@ -19,20 +30,10 @@ sub __set_field {
 	return $self;
 }
 
-sub _build {
-	my $class = shift;
-	my $params = shift;
-	my $def = shift;
-	my $self = {};
-	bless $self,$class;
-
-	my $primaryKey = $class->__traitFieldMap->{primary};
-	my $keyVal ||= $class->_driver()->{$class}{seq}{$primaryKey}++;
-	$params->{$primaryKey} = $keyVal;
-	
-		%{$self->{data}} = %{$params};
-		
-	return $self;
+sub __load_object {
+	my ($class, $invocant, $data) = @_;
+	$invocant->_local->{data} = $data;
+	return $invocant;
 }
 
 sub asHashRef {

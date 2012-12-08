@@ -12,6 +12,7 @@ __PACKAGE__->mk_classdata( "__fieldTraitMap" => {} );
 __PACKAGE__->mk_classdata( "__traitFieldMap" => {} );
 __PACKAGE__->mk_classdata( "__hasMany" => {} );
 __PACKAGE__->mk_classdata( "__hasA" => {} );
+__PACKAGE__->mk_classdata( "__initCallbacks" => [] );
 
 use Cake::Role qw(Cake::Role);
 
@@ -57,7 +58,7 @@ sub __get_has_many {
 
 sub search {
 	my ($class, $search, $order) = @_;
-	return $class->_search($search, $order);
+	return $class->_search($class, $search, $order);
 }
 
 sub find {
@@ -67,7 +68,7 @@ sub find {
 	my %definition   = %{ $class->__fieldTraitMap() };
 	
 	if(ref($args) eq 'HASH') { #We were passed a named field to search by, and should only use it.
-		return $class->_find($args);
+		return $class->_find($class, $args);
 	}
 	else { #We were passed just one, and must build or out of unique fields.
 		my @search;
@@ -75,7 +76,7 @@ sub find {
 			Cake::Validation::checkType($definition{$field}{isa}, $args) or next;
 			push(@search, ($field, $args));
 		}
-		return $class->_find(\@search);
+		return $class->_find($class, \@search);
 	}
 }
 
@@ -97,6 +98,7 @@ sub _build {
 	bless $object, $class;
 	
 	$object->_pk($key) if $key;
+	map { $_->($object) } @{ $class->__initCallbacks };
 	
 	return $object;
 }
@@ -117,7 +119,7 @@ my $createFunc = sub  {
 	} keys %{$parameters};
 	
 	$class->_preCreate($parameters);
-	my $object   = $class->_create($parameters, \%definition);
+	my $object   = $class->_create($class, $parameters, \%definition);
 	$class->_postCreate($object, $parameters);
 	
 	return $object;
@@ -138,22 +140,22 @@ sub update {
 	} keys %{$parameters};
 
 	if(ref($invocant)) {
-		return $invocant->_update($parameters, \%definition);
+		return $invocant->_update($invocant, $parameters, \%definition);
 	}
 	else {
 		defined $where or Cake::Exception::DataLoss->throw();
-		return $invocant->_update($parameters, \%definition, $where);
+		return $invocant->_update($invocant, $parameters, \%definition, $where);
 	}
 }
 
 sub delete {
 	my ($invocant, $where) = @_;
 	if(ref($invocant)) {
-		return $invocant->_delete;
+		return $invocant->_delete($invocant);
 	}
 	else {
 		defined $where or Cake::Exception::DataLoss->throw();
-		return $invocant->_delete($where);
+		return $invocant->_delete($invocant, $where);
 	}
 }
 
@@ -364,7 +366,7 @@ sub ___mk_has_many {
 
 sub _pk {
 	my ($self, $key) = @_;
-	return $self->{_pk} ||= { $key->{field} => $key->{value} };
+	return $self->{_pk} ||= $key;
 }
 
 
@@ -385,8 +387,17 @@ sub _classData {
 	
 }
 
-sub _CLASS {
-	ref(shift);
+sub _registerInitCallback {
+	my ($class, $callback) = @_;
+	push(@{$class->__initCallbacks}, $callback);
 }
+
+sub _CLASS {
+	my ($invocant) = @_;
+	my $ref = ref($invocant);
+	return $ref? $ref : $invocant;
+}
+
+__PACKAGE__->mk_classdata("_table");
 
 1;

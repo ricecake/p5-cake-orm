@@ -3,6 +3,7 @@ use strict;
 use base qw(Cake::Object::Storage::Persistent::DB);
 
 sub __init {
+	my ($class) = @_;
 	my $config = __PACKAGE__->_getConfig->fetchAll;
 
 	my $platform = $config->{platform};
@@ -16,6 +17,7 @@ sub __init {
 
 	__PACKAGE__->__driver( DBI->connect( $dsn, $user, $pw ) );
 	__PACKAGE__->__driver->{HandleError} = sub { Cake::Exception::DB::DBIError->throw( { driver => "Postgres", "errstr" => $_[0] } ) };
+	$class->_registerInitCallback(__PACKAGE__->can('__instantiate'));
 }
 
 1;
