@@ -1,5 +1,6 @@
 package Cake::Object::Storage::Volatile::Redis;
 use base qw(Cake::Object::Storage::Volatile);
+use Cake::Object::Storage::Volatile::Redis::Resultset;
 use strict;
 
 use Redis;
@@ -11,7 +12,7 @@ sub __init {
 	my $config = __PACKAGE__->_getConfig->fetchAll;
 
 	__PACKAGE__->__driver(Redis->new(%$config));
-	__PACKAGE__->__driver()->select(0);
+	__PACKAGE__->__driver()->select(1);
 	$class->_registerInitCallback(__PACKAGE__->can('__instantiate'));
 }
 
@@ -39,7 +40,7 @@ sub _find {
 	my $primary = $invocant->__traitFieldMap()->{primary};
 	my $r = $class->__driver;
 	my $objClass = $invocant->_CLASS;
-$objClass="Apps::Memo::User";
+
 	my %options;
 	if(ref($search) eq 'HASH') {
 		%options = %$search;
@@ -64,7 +65,6 @@ $objClass="Apps::Memo::User";
 
 		if(my $key = $r->hget($index, $value)) {
 			my ($pkValue) = $key =~ /=(.+)$/;
-			print $pkValue,$invocant;
 			return $invocant->_build({$primary => $pkValue})
 		}
 	}
@@ -113,11 +113,27 @@ sub __set_field {
 }
 sub __get_has_a {
 	my ($class, $self, $traits, $field, $value) = @_;
-	my $primary = $class->__traitFieldMap()->{primary};
+	my ($myField, $otherClass, $otherField) = @{$traits};
+
+	my $objClass = $self->_CLASS;
+	my $key = $self->_local->{key};
+	my $r = $class->__driver;
+
+	my $fieldValue  = $self->$myField;
+	my $remoteIndex = "$otherClass->$otherField";
+	return $otherClass->find({$otherField => $fieldValue});
+
+
 }
 sub __get_has_many {
 	my ($class, $self, $traits, $field, $value) = @_;
-	my $primary = $class->__traitFieldMap()->{primary};
+	my ($myField, $otherClass, $otherField) = @{$traits};
+	my $r = $class->__driver;
+
+	my $value = $self->$myField;
+	my $index = "$otherClass->$otherField=$value";
+	return unless $r->exists($index);
+	return Cake::Object::Storage::Volatile::Redis::Resultset->createFromSet($index, $r);
 }
 sub _update {
 	my ($class, $invocant, $parameters, $definition, $where) = @_;
@@ -130,15 +146,71 @@ sub _delete {
 }
 
 sub __load_object {
-	Cake::Exception::PureVirtual->throw;
+	my ($class, $object, $data) = @_;
+	my $objClass = $object->_CLASS;
+	my $key = $object->_local->{key};
+	my $r = $class->__driver;
+
+	my %traitMap = %{ $object->__traitFieldMap() };
+
+	foreach my $field (@{ $traitMap{unique} }) {
+		my $uniqIndex = "$objClass->$field";
+		$r->hset($uniqIndex, $data->{$field}, $key, sub{});
+	}
+	foreach my $field (@{ $traitMap{index} }) {
+		my $value = $data->{$field};
+		my $index = "$objClass->$field=$value";
+		$r->sadd($index, $key, sub{});
+	}
+	$r->hmset($key, %{$data});
+	return $object;
 }
 
 sub __fetch_object {
-	Cake::Exception::PureVirtual->throw;
+	my ($class, $invocant, $search) = @_;
+	my $primary = $invocant->__traitFieldMap()->{primary};
+	my $r = $class->__driver;
+	my $objClass = $invocant->_CLASS;
+
+	my %options;
+	if(ref($search) eq 'HASH') {
+		%options = %$search;
+	}
+	elsif(ref($search) eq 'ARRAY') {
+		%options = @$search;
+	}
+	else {
+		return;
+	}
+	
+	if (exists $options{$primary}) {
+		my $key = "$objClass=" . $options{$primary};
+		if($r->exists($key)) {
+			return ($invocant->_build({$primary => $options{$primary}}), {$r->hgetall($key)});
+		}
+	}
+	foreach my $field (keys %options) {
+		my $value  = $options{$field};
+		my $index  = "$objClass->$field";
+
+		if(my $key = $r->hget($index, $value)) {
+			my ($pkValue) = $key =~ /=(.+)$/;
+			return ($invocant->_build({$primary => $pkValue}), {$r->hgetall($key)})
+		}
+	}
+	return;
 }
 
 sub __load_index {
-	Cake::Exception::PureVirtual->throw;
+	my ($class, $self, $traits, $field, $data) = @_;
+	my ($myField, $otherClass, $otherField) = @{$traits};
+	my $r = $class->__driver;
+
+	my $value = $self->$myField;
+	my $index = "$otherClass->$otherField=$value";
+	my @keys = map { "$otherClass=$_" } @{$data};
+
+	return $r->sadd($index, @keys);
 }
 
 sub __fetch_index {
@@ -151,6 +223,16 @@ sub __load_unique_index {
 
 sub __fetch_unique_index {
 	Cake::Exception::PureVirtual->throw;
+}
+
+sub _asHashRef {
+	my ($class, $object) = @_;
+	my $r = $class->__driver;
+	my $key = $object->_local->{key};
+	my @data = $r->hgetall($key);
+	return unless @data;
+	return {@data};
+
 }
 
 1;

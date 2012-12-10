@@ -16,7 +16,7 @@ sub all {
 	my $of = $self->of;
 	my $primary = $of->__traitFieldMap()->{primary};
 	my @results = map {
-		$of->_build({ $primary => $_->[0] })
+		$of->_build({ $primary => $_->[0] })->_sync
 		} @{ $self->{sth}->fetchall_arrayref };
 	return wantarray? @results : \@results;
 }
@@ -24,9 +24,11 @@ sub next {
 	my ($self) = @_;
 	my $of = $self->of;
 	my $primary = $of->__traitFieldMap()->{primary};
-	my $result = $self->{sth}->fetchrow_arrayref;
+	$self->{_results} ||= do { [map { @{$_} } @{ $self->{sth}->fetchall_arrayref } ]};
+	my $result = pop(@{$self->{_results}});
+
 	if($result) {
-		return $of->_build({$primary => $result->[0] });
+		return $of->_build({$primary => $result })->_sync;
 	}
 	return;
 }

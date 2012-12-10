@@ -230,23 +230,72 @@ sub __load_object {
 }
 
 sub __fetch_object {
-	my ($class, $invocant) = @_;
+	my ($class, $invocant, $search) = @_;
 	
 	my $table = $invocant->_table;
+	my $primary = $invocant->__traitFieldMap()->{primary};
 	
-	my ($query, @bind) = $sql->select($table, [ keys %{$invocant->__fieldTraitMap()} ], $invocant->_pk);
+	my ($query, @bind) = $sql->select($table, [ keys %{$invocant->__fieldTraitMap()} ], $search);
 	my $sth = $class->__driver->prepare($query);
 	$sth->execute(@bind);
-
-	return $sth->fetchrow_hashref;
+	my $data = $sth->fetchrow_hashref;
+	
+	return unless $data;
+	return ($invocant->_build({$primary => $data->{$primary}}), $data);
 }
 
 sub __fetch_index {
-	Cake::Exception::PureVirtual->throw;
+	my ($class, $self, $traits, $field, $order) = @_;
+	my ($myField, $otherClass, $otherField) = @{$traits};
+	
+	$order = __rectifyOrder($order);
+
+	eval "require $otherClass";
+	
+	my $myTable    = $self->_table;
+	my $otherTable = $otherClass->_table;
+	my $otherPK    = $otherClass->__traitFieldMap()->{primary};
+	
+	my $key   = $self->_pk;
+	my ($field, $value) = %{$key};
+	
+	my ( $query, @bind ) = (
+		$self->_classData->{sql}{has_many}{$field} ||= $sql->select(
+			[ "$myTable me", "$otherTable them" ],
+			"them.$otherPK",
+			{
+				"me.$field"        => $value,
+				"them.$otherField" => { -ident => "me.$myField" }
+			},
+			$order
+		)
+	);
+
+	unless(@bind) {
+		@bind = $sql->values($key);
+	}
+	my $sth = $class->__driver->prepare($query);
+	$sth->execute(@bind);
+	return  [ map { @{$_} } @{$sth->fetchall_arrayref} ];
 }
 
 sub __fetch_unique_index {
 	Cake::Exception::PureVirtual->throw;
 }
+
+sub _asHashRef {
+	my ($class, $object) = @_;
+	my $table = $object->_table;
+	my $primary = $object->__traitFieldMap()->{primary};
+	
+	my ($query, @bind) = $sql->select($table, [ keys %{$object->__fieldTraitMap()} ], $object->_pk);
+	my $sth = $class->__driver->prepare($query);
+	$sth->execute(@bind);
+	my $data = $sth->fetchrow_hashref;
+	
+	return unless $data;
+	return $data;
+}
+
 
 1;
