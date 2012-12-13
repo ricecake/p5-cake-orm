@@ -330,6 +330,21 @@ where clause.
 	our $message = "A Data Loss incident was attempted";
 }
 
+=head2 Cake::Exception::NotSupported
+
+An unsuported method use was attempted.
+
+An attempt was made to use a method in a way
+which is not currently supported.
+
+=cut
+
+{
+	package Cake::Exception::NotSupported;
+	use base qw(Cake::Exception);
+	our $message = "An unsuported method use was attempted";
+}
+
 1;
 
 __END__

@@ -26,7 +26,33 @@ sub asHashRefs {
 	Cake::Exception::PureVirtual->throw;
 }
 sub sort {
-	Cake::Exception::PureVirtual->throw;
+	my $self = shift;
+	my $attrs = {};
+	my $r = $self->{r};
+    if (ref($_[0]) eq 'HASH') {
+		$attrs = shift;
+	}
+	else {
+		%{$attrs} = @_;
+    }
+		my ($sortOrder) = grep { /^-(asc|desc)$/i } keys %$attrs;
+		Cake::Exception::Required->throw({field => 'sort', values => '-asc, -desc'}) unless $sortOrder;
+		my $sortKey = $attrs->{$sortOrder};
+		$sortKey = "*->$sortKey";
+		$sortOrder = lc($sortOrder) eq '-desc'?'desc':'asc';
+#        my @sortString;
+	if ($self->{cow}) {
+#		@sortString = ($self->{key}, 'BY', $sortKey, $sortOrder, "STORE", $self->{cow});
+		$r->sort($self->{key}, 'BY', $sortKey, $sortOrder, "STORE", $self->{cow}, sub{});
+		$self->{key} = delete $self->{cow};
+	}
+	else {
+		#@sortString = grep {defined $_} (($self->{key}, 'BY', $sortKey, $sortOrder, "STORE", $self->{key});
+		$r->sort($self->{key}, 'BY', $sortKey, $sortOrder, "STORE", $self->{key}, sub{});
+	}
+
+	$self->{mode} = 'LIST';
+	return $self;
 }
 sub all {
 	my $self = shift;
@@ -37,11 +63,11 @@ sub all {
 	my @results;
 
 	if ($mode eq 'LIST') {
-		@results = map { $of->_build({$primary => $_})->_sync }
+		@results = map { $of->_build({$primary => $_}) }
 					map { s/^.+=//o and $_ } $r->lrange($self->{key},0,-1);
 	}
 	else {
-		@results = map { $of->_build({$primary => $_})->_sync }
+		@results = map { $of->_build({$primary => $_}) }
 					map { s/^.+=//o and $_ } $r->smembers($self->{key});
 	}
 	return wantarray? @results : \@results;
@@ -66,10 +92,11 @@ sub next {
 	}
 	return unless defined $next;
 	$next =~ s/^.+=//o;
-	$next = $of->_build({$primary => $next})->_sync;
+	$next = $of->_build({$primary => $next});
 	
 	return $next;
 }
+
 sub count {
 	Cake::Exception::PureVirtual->throw;
 }
@@ -86,7 +113,8 @@ sub DESTROY {
 	my $key = $self->{key};
 	require Redis;
 	my $redis = Redis->new;
-	$redis->del($key);
+	$redis->select(1);
+	$redis->del($key, sub{});
 }
 
 

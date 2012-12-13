@@ -88,7 +88,7 @@ sub _search {
 sub _update {
 	my ($class, $invocant, $parameters, $definition, $where) = @_;
 	my $table = $invocant->_table;
-	$where   ||= {$invocant->_local->{key}{field} => $invocant->_local->{key}{value} };
+	$where   ||= $invocant->_pk;
 
 	my ($query, @bind) = $sql->update($table, $parameters, $where);
 
@@ -143,7 +143,7 @@ sub __set_field {
 	
 	my ($query, @bind) = ($self->_classData->{sql}{set}{$field} ||= $sql->update($table, {$field => $value}, $key ) );
 	unless(@bind) {
-		@bind = $sql->values($key);
+		@bind = $sql->values({%{$key}, $field => $value});
 	}
 	my $sth = $class->__driver->prepare($query);
 	$sth->execute(@bind);
@@ -176,7 +176,7 @@ sub __get_has_a {
 	);
 
 	unless(@bind) {
-		@bind = $sql->values({$key->{field} => $key->{value}});
+		@bind = $sql->values($key);
 	}
 	my $sth = $class->__driver->prepare($query);
 	$sth->execute(@bind);
@@ -245,34 +245,25 @@ sub __fetch_object {
 }
 
 sub __fetch_index {
-	my ($class, $self, $traits, $field, $order) = @_;
-	my ($myField, $otherClass, $otherField) = @{$traits};
-	
-	$order = __rectifyOrder($order);
+	my ($class, $otherClass, $field, $value) = @_;
 
 	eval "require $otherClass";
 	
-	my $myTable    = $self->_table;
 	my $otherTable = $otherClass->_table;
 	my $otherPK    = $otherClass->__traitFieldMap()->{primary};
 	
-	my $key   = $self->_pk;
-	my ($field, $value) = %{$key};
-	
 	my ( $query, @bind ) = (
-		$self->_classData->{sql}{has_many}{$field} ||= $sql->select(
-			[ "$myTable me", "$otherTable them" ],
+		$otherClass->_classData->{sql}{fetch_index}{$field} ||= $sql->select(
+			[ "$otherTable them" ],
 			"them.$otherPK",
 			{
-				"me.$field"        => $value,
-				"them.$otherField" => { -ident => "me.$myField" }
+				"them.$field" => $value
 			},
-			$order
 		)
 	);
 
 	unless(@bind) {
-		@bind = $sql->values($key);
+		@bind = $sql->values({$field => $value});
 	}
 	my $sth = $class->__driver->prepare($query);
 	$sth->execute(@bind);
@@ -280,7 +271,23 @@ sub __fetch_index {
 }
 
 sub __fetch_unique_index {
-	Cake::Exception::PureVirtual->throw;
+	my ($class, $searchClass, $field) = @_;
+	
+	eval "require $searchClass";
+	
+	my $myTable = $searchClass->_table;
+	my $myPK    = $searchClass->__traitFieldMap()->{primary};
+	
+	my ( $query, @bind ) = (
+		$searchClass->_classData->{sql}{fetch_unique}{$field} ||= $sql->select(
+			["$myTable me"],
+			["me.$field", "me.$myPK"],
+		)
+	);
+
+	my $sth = $class->__driver->prepare($query);
+	$sth->execute(@bind);
+	return  $sth->fetchall_arrayref;
 }
 
 sub _asHashRef {

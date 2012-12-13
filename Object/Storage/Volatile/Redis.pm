@@ -12,7 +12,7 @@ sub __init {
 	my $config = __PACKAGE__->_getConfig->fetchAll;
 
 	__PACKAGE__->__driver(Redis->new(%$config));
-	__PACKAGE__->__driver()->select(1);
+	__PACKAGE__->__driver()->select(3);
 	$class->_registerInitCallback(__PACKAGE__->can('__instantiate'));
 }
 
@@ -27,14 +27,6 @@ sub __instantiate {
 	return;
 }
 
-sub _create {
-	my ($class, $invocant, $params, $definition ) = @_;
-	my $primary = $class->__traitFieldMap()->{primary};
-}
-sub _search {
-	my ($class, $invocant, $search, $order) = @_;
-	my $primary = $class->__traitFieldMap()->{primary};
-}
 sub _find {
 	my ($class, $invocant, $search) = @_;
 	my $primary = $invocant->__traitFieldMap()->{primary};
@@ -51,8 +43,7 @@ sub _find {
 	else {
 		return;
 	}
-	
-	use Data::Dumper qw(Dumper);
+
 	if (exists $options{$primary}) {
 		my $key = "$objClass=" . $options{$primary};
 		if($r->exists($key)) {
@@ -126,23 +117,72 @@ sub __get_has_a {
 
 }
 sub __get_has_many {
-	my ($class, $self, $traits, $field, $value) = @_;
+	my ($class, $self, $traits, $field, $order) = @_;
 	my ($myField, $otherClass, $otherField) = @{$traits};
 	my $r = $class->__driver;
 
 	my $value = $self->$myField;
 	my $index = "$otherClass->$otherField=$value";
 	return unless $r->exists($index);
+	if($order) {
+		my $rs = Cake::Object::Storage::Volatile::Redis::Resultset->createFromSet($index, $r);
+		return $rs->sort($order);
+	}
 	return Cake::Object::Storage::Volatile::Redis::Resultset->createFromSet($index, $r);
 }
-sub _update {
-	my ($class, $invocant, $parameters, $definition, $where) = @_;
-	my $primary = $invocant->__traitFieldMap()->{primary};
+
+sub _delete {
+	my ($class, $self, $where) = @_;
+	my $objClass = $self->_CLASS;
+	my $definition = $self->__fieldTraitMap();
+	my $key = $self->_local->{key};
+	my $r = $class->__driver;
+	my %values = %{$self->asHashRef};
+
+	while (my ($field, $traits) = each %$definition) {
+		my $oldVal = $values{$field};
+		if ( $traits->{unique} ) {
+			my $index  = "$objClass->$field";
+			$r->hdel( $index, $oldVal, sub { } );
+		}
+		elsif ( $traits->{index} ) {
+			my $oldSearch = "$objClass->$field=$oldVal";
+			$r->srem( $oldSearch, $key, sub { } );
+		}
+	}
+	$r->del( $key, sub{} );
+	return 1;
 
 }
-sub _delete {
-	my ($class, $invocant, $where) = @_;
-	my $primary = $invocant->__traitFieldMap()->{primary};
+
+sub _update {
+	my ($class, $self, $parameters, $definition, $where) = @_;
+	my $objClass = $self->_CLASS;
+	my $key = $self->_local->{key};
+	my $r = $class->__driver;
+
+	my $value;
+	my $oldVal;
+	while (my ($field, $traits) = each %$definition) {
+		next unless exists $parameters->{$field};
+
+		if ( $traits->{unique} ) {
+			$value = $parameters->{$field};
+			$oldVal = $self->$field;
+			print "$value $oldVal\n";
+			my $index  = "$objClass->$field";
+			$r->hdel( $index, $oldVal, sub { } );
+			$r->hset( $index, $value, $key, sub{} );
+		}
+		elsif ( $traits->{index} ) {
+			my $search = "$objClass->$field=$value";
+			my $oldSearch = "$objClass->$field=$oldVal";
+			$r->srem( $oldSearch, $key, sub { } );
+			$r->sadd( $search,    $key, sub { } );
+		}
+	}
+	$r->hmset( $key, %{$parameters}, sub{});
+	return $self;
 }
 
 sub __load_object {
@@ -155,14 +195,20 @@ sub __load_object {
 
 	foreach my $field (@{ $traitMap{unique} }) {
 		my $uniqIndex = "$objClass->$field";
-		$r->hset($uniqIndex, $data->{$field}, $key, sub{});
+		my $value = $data->{$field};
+		$r->hset($uniqIndex, $value, $key) or die;
+		print "$_\n" for $r->hgetall($uniqIndex);
 	}
 	foreach my $field (@{ $traitMap{index} }) {
 		my $value = $data->{$field};
 		my $index = "$objClass->$field=$value";
 		$r->sadd($index, $key, sub{});
 	}
-	$r->hmset($key, %{$data});
+	my %update = %{$data};
+	foreach my $key (keys %update) {
+		delete $update{$key} unless defined $update{$key};
+	}
+	$r->hmset($key, %update);
 	return $object;
 }
 
@@ -182,7 +228,7 @@ sub __fetch_object {
 	else {
 		return;
 	}
-	
+
 	if (exists $options{$primary}) {
 		my $key = "$objClass=" . $options{$primary};
 		if($r->exists($key)) {
@@ -202,15 +248,14 @@ sub __fetch_object {
 }
 
 sub __load_index {
-	my ($class, $self, $traits, $field, $data) = @_;
-	my ($myField, $otherClass, $otherField) = @{$traits};
+	my ($class, $otherClass, $otherField, $value, $data) = @_;
 	my $r = $class->__driver;
 
-	my $value = $self->$myField;
 	my $index = "$otherClass->$otherField=$value";
 	my @keys = map { "$otherClass=$_" } @{$data};
 
-	return $r->sadd($index, @keys);
+	$r->del($index, sub{});
+	return $r->sadd($index, @keys, sub{});
 }
 
 sub __fetch_index {
@@ -218,7 +263,15 @@ sub __fetch_index {
 }
 
 sub __load_unique_index {
-	Cake::Exception::PureVirtual->throw;
+	my ($class, $otherClass, $otherField, $data) = @_;
+
+	my $r = $class->__driver;
+
+	my $index = "$otherClass->$otherField";
+	my @keys = map { $_->[0] => "$otherClass=".$_->[1] } @{$data};
+
+	$r->del($index, sub{});
+	return $r->hmset($index, @keys, sub{});
 }
 
 sub __fetch_unique_index {
@@ -233,6 +286,11 @@ sub _asHashRef {
 	return unless @data;
 	return {@data};
 
+}
+
+sub __flush {
+	my ($class) = @_;
+	$class->__driver->wait_all_responses;
 }
 
 1;

@@ -65,4 +65,8 @@ sub __init {
 	return;
 }
 
+sub __flush {
+		return;
+}
+
 1;

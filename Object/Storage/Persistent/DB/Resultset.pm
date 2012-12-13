@@ -24,8 +24,13 @@ sub next {
 	my ($self) = @_;
 	my $of = $self->of;
 	my $primary = $of->__traitFieldMap()->{primary};
-	$self->{_results} ||= do { [map { @{$_} } @{ $self->{sth}->fetchall_arrayref } ]};
-	my $result = pop(@{$self->{_results}});
+
+	
+	unless(exists $self->{_results}) {
+		@{ $self->{_results} } = map { @{$_} } @{ $self->{sth}->fetchall_arrayref };
+	}
+
+	my $result = shift(@{$self->{_results}});
 
 	if($result) {
 		return $of->_build({$primary => $result })->_sync;

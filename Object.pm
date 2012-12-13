@@ -374,7 +374,7 @@ sub _local {
 	my $self = shift;
 	my $caller = shift || caller;
 	my $engine = $caller->__engine;
-	
+
 	return $self->{$engine} ||= {};
 }
 

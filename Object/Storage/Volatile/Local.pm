@@ -26,7 +26,7 @@ sub __get_field {
 sub __set_field {
 	my ($class, $self, $traits, $field, $value) = @_;	
 	
-	$self->{data}{$field} = $value;
+	$self->_local->{data}{$field} = $value;
 	return $self;
 }
 
@@ -36,9 +36,23 @@ sub __load_object {
 	return $invocant;
 }
 
-sub asHashRef {
-	my $self = shift;
-	return $self->{data};
+sub _update {
+	my ($class, $self, $parameters, $definition, $where) = @_;
+	while(my ($field, $value) = each %{$parameters}){
+		$self->_local->{data}{$field} = $value;
+	}
+}
+
+sub _delete {
+	my ($class, $self, $where) = @_;
+	delete $self->_local->{data};
+	return 1;
+}
+
+
+sub _asHashRef {
+	my ($class, $object) = @_;
+	return $object->_local->{data};
 }
 
 1;
