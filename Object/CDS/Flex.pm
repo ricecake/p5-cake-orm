@@ -181,7 +181,6 @@ sub _update {
 	Cake::Exception::NotSupported->throw({action => 'class level update'}) if defined $where;
 	
 	my $object = $invocant->__canonicalStore->_update($invocant, $params, $definition);
-	my $data = $invocant->__canonicalStore->_asHashRef($object);
 	
 	foreach my $engine (@create) {
 		$engine->_update($object, $params, $definition);
