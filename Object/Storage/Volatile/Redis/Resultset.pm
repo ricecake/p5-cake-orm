@@ -41,8 +41,8 @@ sub sort {
 			   ($collate eq undef)  ? 'alpha' :
 			   ($collate =~ /^num/i)?  undef  :
 			   Cake::Exception::UnknownValue->throw({field => '-collate',
-													 value => $collate,
-													 acceptable => 'alpha, numeric'});
+								 value => $collate,
+								 acceptable => 'alpha, numeric'});
 	
 	my @limit;
 	if(exists $options->{-limit}) {
