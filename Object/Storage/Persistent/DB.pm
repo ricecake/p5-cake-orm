@@ -3,18 +3,30 @@ use strict;
 use base qw(Cake::Object::Storage::Persistent);
 
 use DBI;
-use SQL::Abstract;
+use SQL::Abstract::More;
 use Cake::Object::Storage::Persistent::DB::Resultset;
 
 __PACKAGE__->__engine(__PACKAGE__);
 
 
 
-my $sql = SQL::Abstract->new;
+my $sql = SQL::Abstract::More->new(limit_offset => 'LimitOffset');
+
+#sub __setupStorageTraits {
+#	my ($class) = @_;
+#	return sub {
+#		my ($objClass) = shift;
+#		print "$class => $objClass\n";
+#	}
+#}
+
+sub __init {
+	my ($self, $class) = @_;
+	$class->_defineEngineTraits({_table => ''});
+}
 
 sub __instantiate {
 	my ($object) = @_;
-	$object->_local->{test} = "POSTGRES";
 	return;
 }
 
@@ -38,6 +50,19 @@ sub __rectifyOrder {
 		}
 	}
 	return $order;
+}
+
+sub __limitOffset {
+	my ($query, $bind, $options) = @_;
+	
+	my $limit  = delete $options->{-limit};
+	my $offset = delete $options->{-offset};
+	
+	my ($lim, @values) = $sql->limit_offset($limit,$offset);
+	$query .= " $lim";
+	push(@$bind, @values);
+	
+	return ($query, $bind);
 }
 
 sub _find {
@@ -73,12 +98,13 @@ sub _create {
 }
 
 sub _search {
-	my ($class, $invocant, $search, $order) = @_;
+	my ($class, $invocant, $search, $order, $options) = @_;
 	
 	my $table = $invocant->_table;
 	my $primary = $invocant->__traitFieldMap()->{primary};
 	
 	my ($query, @bind) = $sql->select($table, $primary, $search, $order);
+	($query) = __limitOffset($query, \@bind, $options);	
 	my $sth = $class->__driver->prepare($query);
 	$sth->execute(@bind);
 
@@ -189,7 +215,7 @@ sub __get_has_a {
 }
 
 sub __get_has_many {
-	my ($class, $self, $traits, $field, $order) = @_;
+	my ($class, $self, $traits, $field, $order, $options) = @_;
 	my ($myField, $otherClass, $otherField) = @{$traits};
 	
 	$order = __rectifyOrder($order);
@@ -211,13 +237,16 @@ sub __get_has_many {
 				"me.$field"        => $value,
 				"them.$otherField" => { -ident => "me.$myField" }
 			},
-			$order
+			$order,
 		)
 	);
 
 	unless(@bind) {
 		@bind = $sql->values($key);
 	}
+
+	($query) = __limitOffset($query, \@bind, $options);	
+	
 	my $sth = $class->__driver->prepare($query);
 	$sth->execute(@bind);
 	return Cake::Object::Storage::Persistent::DB::Resultset->create($otherClass, $sth);
@@ -252,19 +281,14 @@ sub __fetch_index {
 	my $otherTable = $otherClass->_table;
 	my $otherPK    = $otherClass->__traitFieldMap()->{primary};
 	
-	my ( $query, @bind ) = (
-		$otherClass->_classData->{sql}{fetch_index}{$field} ||= $sql->select(
-			[ "$otherTable them" ],
-			"them.$otherPK",
-			{
-				"them.$field" => $value
-			},
-		)
+	my ( $query, @bind ) = $sql->select(
+		[ $otherTable ],
+		$otherPK,
+		{
+			$field => $value
+		},
 	);
 
-	unless(@bind) {
-		@bind = $sql->values({$field => $value});
-	}
 	my $sth = $class->__driver->prepare($query);
 	$sth->execute(@bind);
 	return  [ map { @{$_} } @{$sth->fetchall_arrayref} ];
@@ -278,11 +302,9 @@ sub __fetch_unique_index {
 	my $myTable = $searchClass->_table;
 	my $myPK    = $searchClass->__traitFieldMap()->{primary};
 	
-	my ( $query, @bind ) = (
-		$searchClass->_classData->{sql}{fetch_unique}{$field} ||= $sql->select(
-			["$myTable me"],
-			["me.$field", "me.$myPK"],
-		)
+	my ( $query, @bind ) = $sql->select(
+		[ $myTable ],
+		[ $field, $myPK],
 	);
 
 	my $sth = $class->__driver->prepare($query);

@@ -8,11 +8,11 @@ use Redis;
 __PACKAGE__->__engine(__PACKAGE__);
 
 sub __init {
-	my ($class) = @_;
+	my ($self, $class) = @_;
 	my $config = __PACKAGE__->_getConfig->fetchAll;
 
 	__PACKAGE__->__driver(Redis->new(%$config));
-	__PACKAGE__->__driver()->select(3);
+	__PACKAGE__->__driver()->select(2);
 	$class->_registerInitCallback(__PACKAGE__->can('__instantiate'));
 }
 
@@ -23,7 +23,6 @@ sub __instantiate {
 		my ( $pkField, $pkValue ) = %{$object->_pk};
 		"$class=$pkValue";
 	};
-	$object->_local->{test} = "REDIS";
 	return;
 }
 
@@ -78,6 +77,7 @@ sub __set_field {
 	if ( $traits->{unique} ) {
 		my $oldVal = $self->$field;
 		my $index  = "$objClass->$field";
+		$self->_rebuild($class, $field) unless $r->exists($index);
 		if ( $r->hsetnx( $index, $value, $key ) ) {
 			$r->hdel( $index, $oldVal, sub { } );
 			$r->hset( $key, $field, $value, sub { } );
@@ -88,6 +88,7 @@ sub __set_field {
 	}
 	elsif ( $traits->{index} ) {
 		my $search = "$objClass->$field=$value";
+		$self->_rebuild($class, $field) unless $r->exists($search);
 		if ( my $oldVal = $r->hget( $key, $field ) ) {
 			my $oldSearch = "$objClass->$field=$oldVal";
 			$r->smove( $oldSearch, $search, $key, sub { } );
@@ -111,13 +112,12 @@ sub __get_has_a {
 	my $r = $class->__driver;
 
 	my $fieldValue  = $self->$myField;
-	my $remoteIndex = "$otherClass->$otherField";
 	return $otherClass->find({$otherField => $fieldValue});
 
 
 }
 sub __get_has_many {
-	my ($class, $self, $traits, $field, $order) = @_;
+	my ($class, $self, $traits, $field, $order, $options) = @_;
 	my ($myField, $otherClass, $otherField) = @{$traits};
 	my $r = $class->__driver;
 
@@ -126,7 +126,7 @@ sub __get_has_many {
 	return unless $r->exists($index);
 	if($order) {
 		my $rs = Cake::Object::Storage::Volatile::Redis::Resultset->createFromSet($index, $r);
-		return $rs->sort($order);
+		return $rs->sort($order, $options);
 	}
 	return Cake::Object::Storage::Volatile::Redis::Resultset->createFromSet($index, $r);
 }
@@ -169,14 +169,15 @@ sub _update {
 		if ( $traits->{unique} ) {
 			$value = $parameters->{$field};
 			$oldVal = $self->$field;
-			print "$value $oldVal\n";
 			my $index  = "$objClass->$field";
+			$self->_rebuild($class, $field) unless $r->exists($index);
 			$r->hdel( $index, $oldVal, sub { } );
 			$r->hset( $index, $value, $key, sub{} );
 		}
 		elsif ( $traits->{index} ) {
 			my $search = "$objClass->$field=$value";
 			my $oldSearch = "$objClass->$field=$oldVal";
+			$self->_rebuild($class, $field) unless $r->exists($search);
 			$r->srem( $oldSearch, $key, sub { } );
 			$r->sadd( $search,    $key, sub { } );
 		}
@@ -196,12 +197,13 @@ sub __load_object {
 	foreach my $field (@{ $traitMap{unique} }) {
 		my $uniqIndex = "$objClass->$field";
 		my $value = $data->{$field};
-		$r->hset($uniqIndex, $value, $key) or die;
-		print "$_\n" for $r->hgetall($uniqIndex);
+		$object->_rebuild($class, $field) unless $r->exists($uniqIndex);
+		$r->hset($uniqIndex, $value, $key, sub {});
 	}
 	foreach my $field (@{ $traitMap{index} }) {
 		my $value = $data->{$field};
 		my $index = "$objClass->$field=$value";
+		$object->_rebuild($class, $field) unless $r->exists($index);
 		$r->sadd($index, $key, sub{});
 	}
 	my %update = %{$data};
@@ -282,8 +284,8 @@ sub _asHashRef {
 	my ($class, $object) = @_;
 	my $r = $class->__driver;
 	my $key = $object->_local->{key};
-	my @data = $r->hgetall($key);
-	return unless @data;
+	my @data = $r->hgetall($key) or return;
+	return unless scalar @data;
 	return {@data};
 
 }

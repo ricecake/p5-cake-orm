@@ -26,29 +26,40 @@ sub asHashRefs {
 	Cake::Exception::PureVirtual->throw;
 }
 sub sort {
-	my $self = shift;
-	my $attrs = {};
+	my ($self, $order, $options) = @_;
 	my $r = $self->{r};
-    if (ref($_[0]) eq 'HASH') {
-		$attrs = shift;
+
+	my ($sortOrder) = grep { /^-(asc|desc)$/i } keys %$order;
+	Cake::Exception::Required->throw({field => 'sort', values => '-asc, -desc'}) unless $sortOrder;
+
+	my $sortKey = $order->{$sortOrder};
+	$sortKey = "*->$sortKey";
+	$sortOrder = lc($sortOrder) eq '-desc'?'desc':'asc';
+
+	my $collate = $options->{-collate};
+	$collate = ($collate eq 'alpha')? 'alpha' :
+			   ($collate eq undef)  ? 'alpha' :
+			   ($collate =~ /^num/i)?  undef  :
+			   Cake::Exception::UnknownValue->throw({field => '-collate',
+													 value => $collate,
+													 acceptable => 'alpha, numeric'});
+	
+	my @limit;
+	if(exists $options->{-limit}) {
+		my $limit  = $options->{-limit};
+		my $offset = $options->{-offset} || '0';
+		push(@limit, ('LIMIT', $offset, $limit));
 	}
-	else {
-		%{$attrs} = @_;
-    }
-		my ($sortOrder) = grep { /^-(asc|desc)$/i } keys %$attrs;
-		Cake::Exception::Required->throw({field => 'sort', values => '-asc, -desc'}) unless $sortOrder;
-		my $sortKey = $attrs->{$sortOrder};
-		$sortKey = "*->$sortKey";
-		$sortOrder = lc($sortOrder) eq '-desc'?'desc':'asc';
-#        my @sortString;
+	
+	my @sortOptions;
 	if ($self->{cow}) {
-#		@sortString = ($self->{key}, 'BY', $sortKey, $sortOrder, "STORE", $self->{cow});
-		$r->sort($self->{key}, 'BY', $sortKey, $sortOrder, "STORE", $self->{cow}, sub{});
+		@sortOptions = grep {defined} ($self->{key}, 'BY', $sortKey, $sortOrder, $collate, @limit, "STORE", $self->{cow}, sub{});
+		$r->sort(@sortOptions);
 		$self->{key} = delete $self->{cow};
 	}
 	else {
-		#@sortString = grep {defined $_} (($self->{key}, 'BY', $sortKey, $sortOrder, "STORE", $self->{key});
-		$r->sort($self->{key}, 'BY', $sortKey, $sortOrder, "STORE", $self->{key}, sub{});
+		@sortOptions = grep {defined} ($self->{key}, 'BY', $sortKey, $sortOrder, $collate, @limit, "STORE", $self->{key}, sub{});
+		$r->sort(@sortOptions);
 	}
 
 	$self->{mode} = 'LIST';
@@ -113,7 +124,7 @@ sub DESTROY {
 	my $key = $self->{key};
 	require Redis;
 	my $redis = Redis->new;
-	$redis->select(1);
+	$redis->select(2);
 	$redis->del($key, sub{});
 }
 

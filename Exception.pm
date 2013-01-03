@@ -345,6 +345,20 @@ which is not currently supported.
 	our $message = "An unsuported method use was attempted";
 }
 
+=head2 Cake::Exception::UnknownValue
+
+An Unrecognized value was passed to a function.
+
+The given option could not be understood
+
+=cut
+
+{
+	package Cake::Exception::UnknownValue;
+	use base qw(Cake::Exception);
+	our $message = "An Unrecognized value was passed to a function";
+}
+
 1;
 
 __END__

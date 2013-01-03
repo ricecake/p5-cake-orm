@@ -13,6 +13,7 @@ __PACKAGE__->mk_classdata( "__traitFieldMap" => {} );
 __PACKAGE__->mk_classdata( "__hasMany" => {} );
 __PACKAGE__->mk_classdata( "__hasA" => {} );
 __PACKAGE__->mk_classdata( "__initCallbacks" => [] );
+__PACKAGE__->mk_classdata( "__postSetupActions"  => [] );
 
 use Cake::Role qw(Cake::Role);
 
@@ -57,8 +58,8 @@ sub __get_has_many {
 
 
 sub search {
-	my ($class, $search, $order) = @_;
-	return $class->_search($class, $search, $order);
+	my ($class, $search, $order, $options) = @_;
+	return $class->_search($class, $search, $order, $options);
 }
 
 sub find {
@@ -294,6 +295,10 @@ sub _setup {
 	
 	*{"${class}::create"} = subname "${class}::create" => $createFunc;
 	
+	foreach my $action (@{ $class->__postSetupActions }) {
+		$action->($class);
+	}
+	
 	Cake::Role::installRoles($class, $class->__roles);
 }
 
@@ -355,11 +360,12 @@ sub ___mk_has_many {
 	return subname "${class}::${field}" => sub {
 		my $self  = shift;
 		my $order = shift;
+		my $options = shift;
 		if (@_) {
 			Cake::Exception::ReadOnly->throw;
 		}
 		else {
-			return $class->__get_has_many($self, $details, $field, $order);
+			return $class->__get_has_many($self, $details, $field, $order, $options);
 		}
 	}
 }
@@ -398,6 +404,18 @@ sub _CLASS {
 	return $ref? $ref : $invocant;
 }
 
-__PACKAGE__->mk_classdata("_table");
+sub _defineEngineTraits {
+	my ($class, $traits) = @_;
+	
+	while (my ($traitName, $default) = each %{$traits}) {
+		$class->mk_classdata($traitName => $default);
+	}
+}
+
+sub _installPostSetupActions {
+	my ($class, $action) = @_;
+	return unless defined $action;
+	push(@{$class->__postSetupActions}, $action);
+}
 
 1;

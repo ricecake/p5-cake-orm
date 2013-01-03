@@ -8,6 +8,7 @@ __PACKAGE__->mk_classdata('__relationStore'=>[]);
 __PACKAGE__->mk_classdata('__searchStore'=>[]);
 __PACKAGE__->mk_classdata('__canonicalStore');
 
+my @all;
 my @find;
 my @create;
 my @relations;
@@ -18,8 +19,7 @@ my @search;
 sub __init {
 	my ($class) = @_;
 	{
-		no strict qw(refs);
-		map { &{"${_}::__init"}($class) } (
+		@all = (
 			$class->__memoStore,
 			@{$class->__objectStore},
 			@{$class->__relationStore},
@@ -67,6 +67,9 @@ sub __init {
 			@{$class->__searchStore},
 			$class->__canonicalStore,
 		);
+
+		map { $_->__init($class) } @all;
+		map { $class->_installPostSetupActions($_->__setupStorageTraits($class)) } @all;
 	}
 }
 
@@ -137,16 +140,14 @@ sub __get_has_a {
 	return;
 }
 sub __get_has_many {
-	my ($class, $self, $traits, $field, $order) = @_;
+	my ($class, $self, $traits, $field, $order, $options) = @_;
 	my ($myField, $otherClass, $otherField) = @{$traits};
 
 	$self->_sync unless $self->{sunk};
 	my @misses;
-
-	my $key = $traits->[0];
-	my $value = $self->$key;
+	my $value = $self->$myField;
 	foreach my $engine (@relations) {
-		my $rs = $engine->__get_has_many($self, $traits, $field, $order);
+		my $rs = $engine->__get_has_many($self, $traits, $field, $order, $options);
 		if(defined $rs) {
 			if (@misses) {
 				my $data = $engine->__fetch_index($otherClass, $otherField, $value);
@@ -198,10 +199,10 @@ sub _delete {
 	return 1;
 }
 sub _search {
-	my ($class, $invocant, $search, $order) = @_;
+	my ($class, $invocant, $search, $order, $options) = @_;
 
 	foreach my $engine (@search) {
-		my $resultset = $engine->_search($invocant, $search, $order);
+		my $resultset = $engine->_search($invocant, $search, $order, $options);
 		return $resultset if defined($resultset);
 	}
 }
@@ -211,7 +212,7 @@ sub _sync {
 		
 	foreach my $engine (@find) {
 		my $data = $engine->_asHashRef($object);
-		if($data) {
+		if(ref($data)) {
 			$object->{found} = $engine;
 			$object->{sunk} = 1;
 			foreach my $miss (@misses) {
@@ -223,20 +224,23 @@ sub _sync {
 		else {
 			unshift(@misses,$engine);
 		}
-
 	}
 	return;
 }
 
 sub _rebuild {
-	my ($class) = @_;
-	print "INIT\n";
-	foreach my $uniqField (@{$class->__traitFieldMap->{unique}}) {
-		my $data = $class->__canonicalStore->__fetch_unique_index($class, $uniqField);
-		foreach my $engine (@{$class->__relationStore},) {
-			$engine->__load_unique_index($class, $uniqField, $data);
-			$engine->__flush;
-		}
+	my ($object, $engine, $field) = @_;
+	my $class = $object->_CLASS;
+	if($object->__fieldTraitMap->{$field}{unique}) {
+		my $data = $object->__canonicalStore->__fetch_unique_index($class, $field);
+		$engine->__load_unique_index($class, $field, $data);
+		$engine->__flush;
+	}
+	elsif ($object->__fieldTraitMap->{$field}{index}) {
+		my $fieldValue = $object->$field;
+		my $data = $object->__canonicalStore->__fetch_index($class, $field, $fieldValue);
+		$engine->__load_index($class, $field, $fieldValue, $data);
+		$engine->__flush;
 	}
 }
 

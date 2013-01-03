@@ -69,4 +69,8 @@ sub __flush {
 		return;
 }
 
+sub __setupStorageTraits {
+		return;
+}
+
 1;
