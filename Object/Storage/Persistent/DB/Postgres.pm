@@ -4,7 +4,7 @@ use base qw(Cake::Object::Storage::Persistent::DB);
 
 sub __init {
 	my ($self, $class) = @_;
-	my $config = __PACKAGE__->_getConfig->fetchAll;
+	my $config = $class->_getConfig->fetchAll;
 
 	my $platform = $config->{platform};
 	my $database = $config->{database};

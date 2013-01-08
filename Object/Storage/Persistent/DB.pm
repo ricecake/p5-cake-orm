@@ -12,14 +12,6 @@ __PACKAGE__->__engine(__PACKAGE__);
 
 my $sql = SQL::Abstract::More->new(limit_offset => 'LimitOffset');
 
-#sub __setupStorageTraits {
-#	my ($class) = @_;
-#	return sub {
-#		my ($objClass) = shift;
-#		print "$class => $objClass\n";
-#	}
-#}
-
 sub __init {
 	my ($self, $class) = @_;
 	$class->_defineEngineTraits({_table => ''});
@@ -29,7 +21,6 @@ sub __instantiate {
 	my ($object) = @_;
 	return;
 }
-
 
 sub __rectifyOrder {
 	my $order = shift;

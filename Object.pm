@@ -386,8 +386,8 @@ sub _local {
 
 sub _classData {
 	my $self = shift;
-	my $class = ref($self);
-	my $caller = caller;
+	my $caller = shift || caller;
+	my $class = ref($self)?ref($self):$self;
 	
 	return $caller->__ClassData->{$class} ||= {};
 	

@@ -29,15 +29,14 @@ C<< Cake::Config->new() >>
 This is a generic new function.  it does not accept any parameters.
 
 =cut
-
-my $configStore;
-
+use Data::Dumper qw(Dumper);
 sub new {
 	my $class = shift;
 	
-	my $self  = \$configStore;
+	my $self  = { __CONFIG__ => my $scalar='' };
 	
 	bless $self, $class;
+
 	return $self;
 }
 
@@ -58,10 +57,10 @@ sub loadConfig {
 	my ($self, $file) = @_;
 
 	Cake::Exception::Config::LoadError->assert(sub{
-		read_file($file, buf_ref => \$configStore )
+		read_file($file, buf_ref => \($self->{__CONFIG__}) )
 		}, {file => $file});
 
-	$configStore = decode_json($configStore);
+	$self->{__CONFIG__} = decode_json($self->{__CONFIG__});
 
 	return $self;
 }
@@ -84,8 +83,8 @@ sub fetchAll {
 	my $caller = caller;
 	
 	my $namespace = $package || $caller;
-	
-	return $configStore->{$namespace};
+
+	return $self->{__CONFIG__}{$namespace};
 }
 
 =head2 AUTOLOAD
@@ -111,13 +110,13 @@ sub AUTOLOAD {
 	(my $variable = $AUTOLOAD) =~ s/.*:://;
 	
 	while($namespace) {
-		if(exists $configStore->{$namespace}{$variable}) {
-			return $configStore->{$namespace}{$variable};
+		if(exists $self->{__CONFIG__}{$namespace}{$variable}) {
+			return $self->{__CONFIG__}{$namespace}{$variable};
 		}
 		$namespace =~ s/::.*?$// or last;
 	}
-	if(exists $configStore->{GLOBAL}{$variable}) {
-		return $configStore->{GLOBAL}{$variable};
+	if(exists $self->{__CONFIG__}{GLOBAL}{$variable}) {
+		return $self->{__CONFIG__}{GLOBAL}{$variable};
 	}
 	else {
 		Cake::Exception::Config::UndefinedVariable->throw({variable => $variable});

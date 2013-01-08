@@ -9,7 +9,7 @@ __PACKAGE__->__engine(__PACKAGE__);
 
 sub __init {
 	my ($self, $class) = @_;
-	my $config = __PACKAGE__->_getConfig->fetchAll;
+	my $config = $class->_getConfig->fetchAll;
 
 	__PACKAGE__->__driver(Redis->new(%$config));
 	__PACKAGE__->__driver()->select(2);
@@ -103,6 +103,7 @@ sub __set_field {
 	}
 	return $self;
 }
+
 sub __get_has_a {
 	my ($class, $self, $traits, $field, $value) = @_;
 	my ($myField, $otherClass, $otherField) = @{$traits};
@@ -113,9 +114,8 @@ sub __get_has_a {
 
 	my $fieldValue  = $self->$myField;
 	return $otherClass->find({$otherField => $fieldValue});
-
-
 }
+
 sub __get_has_many {
 	my ($class, $self, $traits, $field, $order, $options) = @_;
 	my ($myField, $otherClass, $otherField) = @{$traits};

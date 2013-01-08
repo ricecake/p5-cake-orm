@@ -25,7 +25,6 @@ sub next {
 	my $of = $self->of;
 	my $primary = $of->__traitFieldMap()->{primary};
 
-	
 	unless(exists $self->{_results}) {
 		@{ $self->{_results} } = map { @{$_} } @{ $self->{sth}->fetchall_arrayref };
 	}
