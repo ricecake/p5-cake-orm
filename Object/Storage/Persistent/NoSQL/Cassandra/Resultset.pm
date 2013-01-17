@@ -39,13 +39,46 @@ sub count {
 	return scalar @{$self->{results}};
 }
 
-sub __ascAlpha  { $a cmp $b };
-sub __ascNumer  { $a <=> $b };
-sub __descAlpha { $b cmp $a };
-sub __descNumer { $b <=> $a };
-
 sub sort {
 	my ($self, $order, $options) = @_;
+	
+	my ($sortOrder) = grep { /^-(asc|desc)$/i } keys %$order;
+	Cake::Exception::Required->throw({field => 'sort', values => '-asc, -desc'}) unless $sortOrder;
+
+	my $sortKey = $order->{$sortOrder};
+	$sortOrder = lc($sortOrder) eq '-desc'? 'descending' : 'ascending';
+
+	my $collate = $options->{-collate};
+	$collate = ($collate eq 'alpha')?  'alpha'   :
+			   ($collate eq undef)  ?  'alpha'   :
+			   ($collate =~ /^num/i)?  'numeric' :
+			   Cake::Exception::UnknownValue->throw({
+					field => '-collate',
+					value => $collate,
+					acceptable => 'alpha, numeric'
+				});
+			   
+	my %sortFunc = (
+		alpha   => {
+			ascending  => sub { $a->{$sortKey} cmp $b->{$sortKey} },
+			descending => sub { $b->{$sortKey} cmp $a->{$sortKey} },
+		},
+		numeric => {
+			ascending  => sub { $a->{$sortKey} <=> $b->{$sortKey} },
+			descending => sub { $b->{$sortKey} <=> $a->{$sortKey} },
+		},
+	);
+	my $function = $sortFunc{$collate}{$sortOrder};
+
+	@{ $self->{results} } = sort $function @{ $self->{results} };
+	
+	if(exists $options->{-limit}) {
+		my $limit  = $options->{-limit};
+		my $offset = $options->{-offset} || '0';
+		@{ $self->{results} } = splice(@{ $self->{results} }, $offset, $limit);
+	}
+
+	return $self;
 }
 sub of {
 	return shift->{of};
