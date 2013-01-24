@@ -184,7 +184,7 @@ sub __load_object {
 	my $conn = $class->__driver;
 	
 	$data->{__SENTINEL__} = '__SENTINEL__';
-	print Dumper($data);
+print 1;
 	while(my ($field, $value)=each %$data) {
 		if(not defined $data->{$field}) {
 			delete $data->{$field};
