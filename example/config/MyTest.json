@@ -1,0 +1,27 @@
+{
+   "MyTest::Foo" : {
+	  "Test" : "bar"
+   },
+   "Cake::Object::Storage::Volatile::Redis" : {
+      "every" : 100,
+      "port" : 6379,
+      "reconnect" : 60,
+      "encoding" : null,
+      "host" : "localhost"
+   },
+   "GLOBAL" : {
+	  "Magic" : "Global Variable"
+   },
+   "MyTest" : {},
+   "Cake::Object::Storage::Persistent::DB::Postgres" : {
+      "database" : "MyTestDB",
+      "pw" : "MyTestPassword",
+      "user" : "Me",
+      "platform" : "Pg",
+      "port" : "5432",
+      "host" : "localhost"
+   },
+   "Cake::Object::Storage::Persistent::NoSQL::Cassandra" : {
+	  "keyspace" : "MyTest"
+   }
+}
