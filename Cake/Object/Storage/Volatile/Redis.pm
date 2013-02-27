@@ -62,7 +62,6 @@ sub _find {
 }
 sub __get_field {
 	my ( $class, $self, $traits, $field, $value ) = @_;
-	my $objClass = $self->_CLASS;
 	my $key = $self->_local->{key};
 	my $r = $class->__driver;
 
