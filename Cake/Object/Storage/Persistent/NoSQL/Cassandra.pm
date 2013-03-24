@@ -253,7 +253,6 @@ sub __fetch_index {
 	my ($class, $otherClass, $field, $value) = @_;
 
 	my $conn = $class->__driver;
-	print Dumper(["1asdfsafd", $field, $value]);
 	my $result = $conn->get_indexed_slices(
 		column_family => $otherClass->_classData->{columnFamily},
 		expression_list => [ [ $field, $value ] ]
